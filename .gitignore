@@ -1,5 +1,14 @@
+# SECURITY: dependencies, local secrets, private keys, credentials, and logs must never be committed.
 node_modules/
 .claude/
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
 npm-debug.log*
 *.log

@@ -14,7 +14,7 @@ let currentFile = null;
 let currentChip = null;
 
 export async function initAudio(container, volumeInput) {
-  container.innerHTML = '';
+  container.replaceChildren();
   audioEl.volume = parseFloat(volumeInput.value);
   volumeInput.addEventListener('input', () => {
     audioEl.volume = parseFloat(volumeInput.value);
@@ -33,7 +33,9 @@ export async function initAudio(container, volumeInput) {
     container.appendChild(chip);
   }
   if (!found) {
-    container.innerHTML = '<span class="audio-empty">No music found in assets/audio</span>';
+    // SECURITY: keep all DOM rendering on textContent instead of retaining raw-HTML sinks.
+    const empty = document.createElement('span'); empty.className = 'audio-empty';
+    empty.textContent = 'No music found in assets/audio'; container.append(empty);
   }
 }
 

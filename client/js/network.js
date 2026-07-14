@@ -3,10 +3,12 @@ const players = new Map();
 let scene = null;
 let profile = null;
 const pathRoom = location.pathname.match(/^\/room\/([a-z0-9-]{6,48})\/?$/i)?.[1]?.toLowerCase();
-export const roomId = pathRoom || `room-${crypto.randomUUID().slice(0, 8)}`;
+// SECURITY: invite links are bearer access. A full random UUID replaces the old 32-bit suffix.
+export const roomId = pathRoom || `room-${crypto.randomUUID()}`;
 if (!pathRoom) history.replaceState(null, '', `/room/${roomId}`);
 
 socket.on('players:snapshot', (list) => {
+  if (!Array.isArray(list)) return;
   players.clear();
   list.forEach((player) => players.set(player.id, player));
   scene?.syncRemotePlayers([...players.values()], socket.id);
@@ -58,7 +60,18 @@ export const network = {
     socket.emit('player:profile', profile);
   },
   savedProfile() {
-    try { return JSON.parse(localStorage.getItem('study-desk-profile')); } catch { return null; }
+    try {
+      const saved = JSON.parse(localStorage.getItem('study-desk-profile'));
+      // SECURITY: localStorage is user-controlled, so only the expected profile shape is restored.
+      if (!saved || typeof saved !== 'object' || typeof saved.name !== 'string') return null;
+      return {
+        name: saved.name.slice(0, 24),
+        avatar: saved.avatar === 'girl' ? 'girl' : 'male',
+        color: /^#[0-9a-f]{6}$/i.test(saved.color) ? saved.color : '#86efac',
+        photo: typeof saved.photo === 'string' && saved.photo.length < 200000
+          && /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i.test(saved.photo) ? saved.photo : null,
+      };
+    } catch { return null; }
   },
   isOccupied(c, r) {
     return [...players.values()].some((player) => player.id !== socket.id && player.c === c && player.r === r);

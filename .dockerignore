@@ -1,6 +1,15 @@
+# SECURITY: keep local secrets, credentials, tooling state, and unrelated files out of the production image.
 node_modules
 .git
 .agents
 .codex
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
 architecture-map.html
 npm-debug.log

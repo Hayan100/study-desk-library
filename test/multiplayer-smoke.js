@@ -16,7 +16,7 @@ function connect(name, roomId = 'test-room') {
   });
 }
 
-function sit(ws, packetId) {
+function sit(ws, packetId, chairId = 'chair-0') {
   return new Promise((resolve) => {
     const handler = ({ data }) => {
       if (!data.startsWith(`43${packetId}`)) return;
@@ -24,7 +24,7 @@ function sit(ws, packetId) {
       resolve(JSON.parse(data.slice(String(packetId).length + 2))[0]);
     };
     ws.addEventListener('message', handler);
-    ws.send(`42${packetId}["chair:sit",{"chairId":"chair-test","c":1,"r":1,"facing":"down"}]`);
+    ws.send(`42${packetId}["chair:sit",{"chairId":"${chairId}","c":1,"r":1,"facing":"down"}]`);
   });
 }
 
@@ -44,9 +44,12 @@ function move(ws, packetId, c, r) {
   const first = await connect('First');
   const second = await connect('Second');
   const otherRoom = await connect('Other', 'other-room');
-  assert.equal((await move(first, 10, 20, 20)).ok, true);
-  assert.equal((await move(second, 11, 20, 20)).ok, false);
-  assert.equal((await move(otherRoom, 12, 20, 20)).ok, true);
+  assert.equal((await move(first, 9, 43, 43)).ok, false); // server rejects teleport attempts
+  assert.equal((await move(second, 8, 11, 32)).ok, true);
+  assert.equal((await move(second, 7, 12, 32)).ok, true);
+  assert.equal((await move(first, 10, 12, 33)).ok, true);
+  assert.equal((await move(second, 11, 12, 33)).ok, false);
+  assert.equal((await move(otherRoom, 12, 12, 33)).ok, true);
   assert.equal((await sit(first, 1)).ok, true);
   assert.equal((await sit(second, 2)).ok, false);
   assert.equal((await sit(otherRoom, 4)).ok, true);

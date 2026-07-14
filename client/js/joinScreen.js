@@ -16,14 +16,28 @@ export function initJoinScreen() {
   const editor = document.getElementById('profile-modal');
   const avatarEditor = document.getElementById('avatar-modal');
   const inviteModal = document.getElementById('invite-modal');
-  const inviteUrl = `${location.origin}/room/${roomId}`;
+  // SECURITY: build the share URL from the browser's canonical origin and an encoded room capability.
+  // This keeps Fly deployments shareable while avoiding malformed paths from string concatenation.
+  const inviteUrl = new URL(`/room/${encodeURIComponent(roomId)}`, location.origin).href;
+  const copyButton = document.getElementById('invite-copy');
   document.getElementById('invite-link').value = inviteUrl;
-  document.getElementById('invite-open').addEventListener('click', () => { inviteModal.hidden = false; });
+  document.getElementById('invite-open').addEventListener('click', () => {
+    copyButton.textContent = 'Copy';
+    inviteModal.hidden = false;
+  });
   document.getElementById('invite-close').addEventListener('click', () => { inviteModal.hidden = true; });
-  document.getElementById('invite-copy').addEventListener('click', async (event) => {
-    await navigator.clipboard.writeText(inviteUrl);
-    event.currentTarget.textContent = 'Copied!';
-    setTimeout(() => { event.currentTarget.textContent = 'Copy'; }, 1400);
+  copyButton.addEventListener('click', async () => {
+    try {
+      // Clipboard may be unavailable outside HTTPS, so select the readonly field as a safe manual fallback.
+      await navigator.clipboard.writeText(inviteUrl);
+      copyButton.textContent = 'Copied';
+      setTimeout(() => { copyButton.textContent = 'Copy'; }, 1600);
+    } catch {
+      const field = document.getElementById('invite-link');
+      field.focus();
+      field.select();
+      copyButton.textContent = 'Select & copy';
+    }
   });
 
   const refreshProfile = () => {
@@ -73,7 +87,10 @@ export function initJoinScreen() {
   AVATARS.forEach(({ id, name }) => {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'avatar-card'; button.dataset.avatar = id;
-    button.innerHTML = `<span class="avatar-preview is-${id}"></span><strong>${name}</strong>`;
+    // SECURITY: build DOM nodes directly so future avatar metadata cannot become an HTML injection sink.
+    const preview = document.createElement('span'); preview.className = `avatar-preview is-${id}`;
+    const label = document.createElement('strong'); label.textContent = name;
+    button.append(preview, label);
     button.addEventListener('click', () => { profile.avatar = id; refreshProfile(); });
     avatarLibrary.append(button);
   });
@@ -94,6 +111,11 @@ export function initJoinScreen() {
   photoInput.addEventListener('change', () => {
     const file = photoInput.files[0];
     if (!file) return;
+    // SECURITY: reject unexpected and oversized local files before decoding; the server validates the encoded result again.
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      photoInput.value = '';
+      return;
+    }
     const image = new Image();
     image.onload = () => {
       const canvas = document.createElement('canvas'); canvas.width = 192; canvas.height = 192;
@@ -103,6 +125,7 @@ export function initJoinScreen() {
       profile.photo = canvas.toDataURL('image/jpeg', 0.82);
       URL.revokeObjectURL(image.src); refreshProfile();
     };
+    image.onerror = () => { URL.revokeObjectURL(image.src); photoInput.value = ''; };
     image.src = URL.createObjectURL(file);
   });
   document.getElementById('profile-form').addEventListener('submit', (event) => {
