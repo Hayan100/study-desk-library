@@ -12,8 +12,7 @@ export function initJoinScreen() {
   }));
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const name = document.getElementById('player-name').value.trim();
-    if (!name) return;
+    const name = document.getElementById('player-name').value.trim() || 'Student';
     network.join({ name, avatar });
     screen.hidden = true;
     document.getElementById('people-panel').hidden = false;
