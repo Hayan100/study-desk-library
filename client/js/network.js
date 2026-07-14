@@ -18,10 +18,16 @@ socket.on('player:joined', (player) => {
 socket.on('player:moved', (player) => {
   players.set(player.id, player);
   scene?.upsertRemotePlayer(player, socket.id);
+  updateRoster();
+});
+socket.on('player:status', (player) => {
+  players.set(player.id, player);
+  updateRoster();
 });
 for (const event of ['player:seated', 'player:stood']) socket.on(event, (player) => {
   players.set(player.id, player);
   scene?.upsertRemotePlayer(player, socket.id);
+  updateRoster();
 });
 socket.on('player:left', (id) => {
   players.delete(id);
@@ -32,9 +38,18 @@ socket.on('player:left', (id) => {
 export const network = {
   join(nextProfile) {
     profile = nextProfile;
+    localStorage.setItem('study-desk-profile', JSON.stringify(profile));
     socket.emit('player:join', profile);
   },
-  move(state) { socket.emit('player:move', state); },
+  move(state, reply = () => {}) { socket.emit('player:move', state, reply); },
+  status(state) { socket.emit('player:status', state); },
+  savedProfile() {
+    try { return JSON.parse(localStorage.getItem('study-desk-profile')); } catch { return null; }
+  },
+  isOccupied(c, r) {
+    return [...players.values()].some((player) => player.id !== socket.id && player.c === c && player.r === r);
+  },
+  playerPositions() { return [...players.values()].map(({ id, c, r }) => ({ id, c, r, self: id === socket.id })); },
   sit(chair, reply) {
     socket.emit('chair:sit', {
       chairId: chair.id, c: chair.c, r: chair.r, facing: chair.facing,
@@ -47,6 +62,8 @@ export const network = {
     if (profile) scene.setLocalAvatar(profile.avatar);
   },
 };
+
+socket.on('connect', () => { if (profile) socket.emit('player:join', profile); });
 
 function updateRoster() {
   const list = document.getElementById('people-list');
@@ -63,7 +80,9 @@ function updateRoster() {
     const name = document.createElement('strong');
     name.textContent = player.id === socket.id ? `${player.name} (You)` : player.name;
     const status = document.createElement('small');
-    status.textContent = 'Active';
+    const clock = Number.isFinite(player.remainingSec)
+      ? ` · ${Math.floor(player.remainingSec / 60)}:${String(player.remainingSec % 60).padStart(2, '0')}` : '';
+    status.textContent = `${player.status || 'Active'}${player.topic ? ` · ${player.topic}` : ''}${clock}`;
     info.append(name, status);
     row.append(initial, info);
     return row;

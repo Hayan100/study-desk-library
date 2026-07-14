@@ -234,15 +234,19 @@ body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 3
 .person-avatar { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; background: #fed7aa; color: #7c2d12; font-weight: 800; }
 .person-avatar.is-girl { background: #fbcfe8; color: #831843; }
 .person-row strong, .person-row small { display: block; }
+.person-row > span:last-child { min-width: 0; }
 .person-row strong { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.person-row small { margin-top: 2px; color: #16a34a; font-size: 12px; }
+.person-row small { margin-top: 2px; color: #16a34a; font-size: 12px; line-height: 1.25; }
 .minimap-frame {
-  position: fixed; left: 354px; bottom: 18px; z-index: 18; width: 160px; height: 160px;
-  pointer-events: none; border: 3px solid rgba(255,255,255,.9); border-radius: 18px;
+  position: fixed; left: 354px; bottom: 18px; z-index: 18; width: 200px; height: 180px;
+  overflow: hidden; pointer-events: none; border: 3px solid rgba(255,255,255,.9); border-radius: 18px;
   box-shadow: 0 10px 28px rgba(0,0,0,.42), inset 0 0 0 1px rgba(0,0,0,.25);
 }
+.minimap-frame canvas { display: block; width: 100%; height: 100%; }
 .minimap-frame[hidden] { display: none; }
 .minimap-frame span {
   position: absolute; left: 10px; bottom: 8px; padding: 3px 7px; border-radius: 999px;
   background: rgba(20,20,28,.8); color: #fff; font-size: 10px; font-weight: 700;
 }
+.minimap-frame b, .minimap-frame i { display: inline-block; width: 7px; height: 7px; margin: 0 3px; border-radius: 50%; background: #22c55e; }
+.minimap-frame i { background: #f59e0b; }

@@ -74,10 +74,16 @@ export class Player {
 
   startStep(target, dir) {
     this.moving = true;
+    this.scene.requestMove(target, dir, (ok) => {
+      if (ok) this.performStep(target, dir);
+      else { this.moving = false; this.playDir('idle', dir); }
+    });
+  }
+
+  performStep(target, dir) {
     this.facing = dir;
     this.playDir('walk', dir);
     if (this.walkAudio.paused) this.walkAudio.play().catch(() => {});
-    this.scene.broadcastPlayer?.({ ...target, facing: dir, moving: true });
     const { x, y } = this.tileToPixel(target.c, target.r);
     this.scene.tweens.add({
       targets: this.sprite, x, y, duration: STEP_MS, ease: 'Linear',

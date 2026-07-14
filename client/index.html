@@ -39,7 +39,10 @@
       <div id="people-list" class="people-list"></div>
     </section>
   </aside>
-  <div id="minimap-frame" class="minimap-frame" hidden><span>You</span></div>
+  <div id="minimap-frame" class="minimap-frame" hidden>
+    <canvas id="minimap-canvas" width="200" height="180"></canvas>
+    <span><b></b>You <i></i>Others</span>
+  </div>
 
   <!-- Phaser injects its canvas here. -->
   <div id="game-container"></div>

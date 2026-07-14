@@ -28,14 +28,28 @@ function sit(ws, packetId) {
   });
 }
 
+function move(ws, packetId, c, r) {
+  return new Promise((resolve) => {
+    const handler = ({ data }) => {
+      if (!data.startsWith(`43${packetId}`)) return;
+      ws.removeEventListener('message', handler);
+      resolve(JSON.parse(data.slice(String(packetId).length + 2))[0]);
+    };
+    ws.addEventListener('message', handler);
+    ws.send(`42${packetId}["player:move",{"c":${c},"r":${r},"facing":"right","moving":true}]`);
+  });
+}
+
 (async () => {
   const first = await connect('First');
   const second = await connect('Second');
+  assert.equal((await move(first, 10, 20, 20)).ok, true);
+  assert.equal((await move(second, 11, 20, 20)).ok, false);
   assert.equal((await sit(first, 1)).ok, true);
   assert.equal((await sit(second, 2)).ok, false);
   first.close();
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal((await sit(second, 3)).ok, true);
   second.close();
-  console.log('multiplayer chair lock smoke test passed');
+  console.log('multiplayer movement and chair lock smoke test passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

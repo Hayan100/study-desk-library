@@ -2,6 +2,7 @@
 // options, and the Start button (which kicks off the countdown).
 import { pauseTimer, resumeTimer, startTimer, stopTimer } from './timer.js';
 import { initAudio, pauseAudio, playNotification, resumeAudio, stopAudio } from './audio.js';
+import { network } from './network.js';
 
 // Bug 2: shared flag read by the scene to block movement while the popup is open.
 // The session menu is available only while the student is seated.
@@ -50,6 +51,7 @@ export function initSession() {
     modal.classList.toggle('is-left', event.detail?.menuSide === 'left');
     if (running) toggleBtn.disabled = false;
     else openModal();
+    network.status({ status: running ? 'Paused' : 'Seated' });
   });
   window.addEventListener('player-stood', () => {
     seated = false;
@@ -61,6 +63,7 @@ export function initSession() {
     }
     if (!modal.hidden) closeModal();
     openBtn.hidden = true;
+    network.status({ status: running ? 'Paused' : 'Active' });
   });
 
   // --- Start the session ---
@@ -94,6 +97,8 @@ export function initSession() {
     stopTimer();
     stopAudio();
     running = false;
+    paused = false;
+    network.status({ status: seated ? 'Seated' : 'Active', topic: '', remainingSec: null });
     if (seated) openModal();
     else openBtn.hidden = true;
   });
@@ -111,10 +116,12 @@ export function initSession() {
   });
 
   window.addEventListener('timer-phase-change', () => playNotification());
+  window.addEventListener('timer-sync', (event) => network.status(event.detail));
   window.addEventListener('timer-finished', () => {
     playNotification();
     stopAudio();
     running = false;
     paused = false;
+    network.status({ status: seated ? 'Seated' : 'Active', topic: '', remainingSec: null });
   });
 }

@@ -11,6 +11,8 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const players = new Map();
 const occupiedChairs = new Map();
+const isOccupied = (c, r, exceptId) => [...players.values()]
+  .some((player) => player.id !== exceptId && player.c === c && player.r === r);
 
 // The game client (index.html, css, js).
 app.use(express.static(path.join(__dirname, 'client')));
@@ -35,25 +37,43 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 io.on('connection', (socket) => {
   socket.on('player:join', ({ name, avatar } = {}) => {
     if (players.has(socket.id)) return;
+    let c = 11, r = 33;
+    while (isOccupied(c, r, socket.id)) c += 1;
     const player = {
       id: socket.id,
       name: String(name || 'Student').trim().slice(0, 24) || 'Student',
       avatar: avatar === 'girl' ? 'girl' : 'male',
-      c: 11, r: 33, facing: 'down', moving: false,
+      c, r, facing: 'down', moving: false, status: 'Active', topic: '', remainingSec: null,
     };
     players.set(socket.id, player);
     socket.emit('players:snapshot', [...players.values()]);
     socket.broadcast.emit('player:joined', player);
   });
 
-  socket.on('player:move', (next = {}) => {
+  socket.on('player:move', (next = {}, reply = () => {}) => {
     const player = players.get(socket.id);
-    if (!player) return;
-    if (Number.isFinite(next.c)) player.c = next.c;
-    if (Number.isFinite(next.r)) player.r = next.r;
+    const c = Number(next.c), r = Number(next.r);
+    if (!player || !Number.isInteger(c) || !Number.isInteger(r) || isOccupied(c, r, socket.id)) {
+      reply({ ok: false });
+      return;
+    }
+    player.c = c;
+    player.r = r;
     if (['up', 'down', 'left', 'right'].includes(next.facing)) player.facing = next.facing;
     player.moving = Boolean(next.moving);
+    if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = player.moving ? 'Walking' : 'Active';
+    reply({ ok: true });
     socket.broadcast.emit('player:moved', player);
+  });
+
+  socket.on('player:status', (next = {}) => {
+    const player = players.get(socket.id);
+    if (!player) return;
+    const allowed = ['Active', 'Walking', 'Seated', 'Focusing', 'Paused', 'On Break'];
+    player.status = allowed.includes(next.status) ? next.status : player.status;
+    player.topic = String(next.topic || '').slice(0, 60);
+    player.remainingSec = Number.isFinite(next.remainingSec) ? Math.max(0, Math.round(next.remainingSec)) : null;
+    io.emit('player:status', player);
   });
 
   socket.on('chair:sit', (next = {}, reply = () => {}) => {
@@ -70,6 +90,7 @@ io.on('connection', (socket) => {
       c: Number(next.c), r: Number(next.r),
       facing: ['up', 'down'].includes(next.facing) ? next.facing : 'down',
     });
+    if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = 'Seated';
     reply({ ok: true });
     socket.broadcast.emit('player:seated', player);
   });

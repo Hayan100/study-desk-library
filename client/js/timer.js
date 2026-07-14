@@ -11,6 +11,7 @@ const toggleEl = document.getElementById('timer-toggle');
 let intervalId = null;
 let state = null; // { mode, phase, endTime, focusMs, breakMs, topic }
 let pausedRemaining = null;
+let lastSync = '';
 
 export function startTimer(opts) {
   stopTimer();
@@ -43,6 +44,7 @@ export function stopTimer() {
   intervalId = null;
   state = null;
   pausedRemaining = null;
+  lastSync = '';
   hud.hidden = true;
   hud.classList.remove('is-running', 'is-paused', 'is-break', 'is-done');
 }
@@ -101,6 +103,14 @@ function render(ms) {
   phaseEl.textContent = state.phase === 'break' ? 'Break' : 'Focus';
   topicEl.textContent = state.topic || '';
   if (pausedRemaining === null) setHudState(state.phase === 'break' ? 'break' : 'running');
+  const status = state.phase === 'break' ? 'On Break' : pausedRemaining === null ? 'Focusing' : 'Paused';
+  const sync = `${status}:${totalSec}:${state.topic || ''}`;
+  if (sync !== lastSync) {
+    lastSync = sync;
+    window.dispatchEvent(new CustomEvent('timer-sync', {
+      detail: { status, topic: state.topic || '', remainingSec: totalSec },
+    }));
+  }
 }
 
 function setHudState(value) {
