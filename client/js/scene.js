@@ -206,7 +206,10 @@ export class LibraryScene extends Phaser.Scene {
       const label = this.add.text(x, y - 78, player.name, {
         fontFamily: 'Arial', fontSize: '9px', color: '#ffffff', backgroundColor: '#4338ca', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 1).setDepth(1001);
-      remote = { sprite, overlay, label };
+      const dot = this.add.circle(x, y, 12, 0xf59e0b).setDepth(2000);
+      this.cameras.main.ignore(dot);
+      this.minimapCamera?.ignore([sprite, overlay, label]);
+      remote = { sprite, overlay, label, dot };
       this.remotePlayers.set(player.id, remote);
     }
     remote.sprite.setTexture(player.avatar);
@@ -222,17 +225,20 @@ export class LibraryScene extends Phaser.Scene {
         .setCrop(0, 0, 181, 105);
       if (chair.facing === 'down') remote.overlay.play(`${player.avatar}-sit-${chair.facing}`, true);
       remote.label.setPosition(seatX, seatY - 78);
+      remote.dot.setPosition(seatX, seatY);
       return;
     }
     remote.overlay.setVisible(false).setCrop();
-    this.tweens.killTweensOf([remote.sprite, remote.label]);
+    this.tweens.killTweensOf([remote.sprite, remote.label, remote.dot]);
     if (player.moving) {
       remote.sprite.play(`${player.avatar}-walk-${player.facing}`, true);
       this.tweens.add({ targets: remote.sprite, x, y, duration: 150, ease: 'Linear' });
       this.tweens.add({ targets: remote.label, x, y: y - 78, duration: 150, ease: 'Linear' });
+      this.tweens.add({ targets: remote.dot, x, y, duration: 150, ease: 'Linear' });
     } else {
       remote.sprite.setPosition(x, y).play(`${player.avatar}-idle-${player.facing}`, true);
       remote.label.setPosition(x, y - 78);
+      remote.dot.setPosition(x, y);
     }
   }
 
@@ -242,6 +248,7 @@ export class LibraryScene extends Phaser.Scene {
     remote.sprite.destroy();
     remote.overlay.destroy();
     remote.label.destroy();
+    remote.dot.destroy();
     this.remotePlayers.delete(id);
   }
 
@@ -354,6 +361,7 @@ export class LibraryScene extends Phaser.Scene {
       this.minZoom = Math.max(sw / this.worldW, sh / this.worldH);
       cam.setZoom(Phaser.Math.Clamp(cam.zoom, this.minZoom, 2));
       this.updateCamera(true);
+      this.minimapCamera?.setViewport(18, sh - 198, 200, 180);
     };
     this.applyViewport();
     this.scale.on('resize', this.applyViewport);
@@ -362,35 +370,14 @@ export class LibraryScene extends Phaser.Scene {
       this.updateCamera(true);
     });
 
-  }
-
-  drawMinimap(time) {
-    if (time < (this.nextMinimapDraw || 0)) return;
-    this.nextMinimapDraw = time + 100;
-    const canvas = document.getElementById('minimap-canvas');
-    if (!canvas || canvas.parentElement.hidden) return;
-    const ctx = canvas.getContext('2d');
-    const x = 8, y = 8, w = 184, h = 164;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#dff3df'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // A Gather-style floor plan: rooms and major furniture, not a tiny live render.
-    ctx.fillStyle = '#f8ead5'; ctx.fillRect(x, y, w, 76);
-    ctx.fillStyle = '#e7dff5'; ctx.fillRect(x, 94, 86, 78);
-    ctx.fillStyle = '#dde9f6'; ctx.fillRect(106, 94, 86, 78);
-    ctx.strokeStyle = '#9aa8b7'; ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, 76); ctx.strokeRect(x, 94, 86, 78); ctx.strokeRect(106, 94, 86, 78);
-    ctx.fillStyle = '#b77a55';
-    [[20,22,54,11],[82,22,48,11],[139,22,42,11],[20,50,67,12],[103,50,70,12],
-      [20,108,54,10],[20,138,60,10],[116,108,62,10],[116,138,62,10]].forEach((r) => ctx.fillRect(...r));
-    ctx.fillStyle = '#c84f48'; ctx.fillRect(91, 8, 10, 76); ctx.fillRect(91, 94, 10, 78);
-
-    const dot = (c, r, color, radius) => {
-      ctx.beginPath(); ctx.arc(x + (c / this.cols) * w, y + (r / this.rows) * h, radius, 0, Math.PI * 2);
-      ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
-    };
-    for (const p of network.playerPositions()) if (!p.self) dot(p.c, p.r, '#f59e0b', 4);
-    dot(this.player.c, this.player.r, '#22c55e', 4.5);
+    this.minimapCamera = this.cameras.add(18, this.scale.height - 198, 200, 180)
+      .setBackgroundColor(0x171321)
+      .setBounds(0, 0, this.worldW, this.worldH)
+      .setZoom(0.32);
+    this.minimapCamera.ignore([this.player.sprite, this.player.seatedOverlay].filter(Boolean));
+    for (const remote of this.remotePlayers.values()) this.minimapCamera.ignore([remote.sprite, remote.overlay, remote.label]);
+    this.localDot = this.add.circle(this.player.sprite.x, this.player.sprite.y, 12, 0x22c55e).setDepth(2000);
+    cam.ignore(this.localDot);
   }
 
   updateCamera(immediate = false) {
@@ -413,9 +400,12 @@ export class LibraryScene extends Phaser.Scene {
     );
   }
 
-  update(time) {
+  update() {
     if (this.player) this.player.update();
     if (this.player) this.updateCamera();
-    if (this.player) this.drawMinimap(time);
+    if (this.player && this.minimapCamera) {
+      this.localDot.setPosition(this.player.sprite.x, this.player.sprite.y);
+      this.minimapCamera.centerOn(this.player.sprite.x, this.player.sprite.y);
+    }
   }
 }
