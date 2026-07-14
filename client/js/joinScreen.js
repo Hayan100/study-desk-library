@@ -20,7 +20,7 @@ export function initJoinScreen() {
     const initial = (profile.name || 'Student')[0].toUpperCase();
     for (const id of ['profile-card-photo', 'profile-photo-preview']) {
       const photo = document.getElementById(id);
-      photo.textContent = initial;
+      photo.textContent = profile.photo ? '' : initial;
       photo.style.background = profile.photo ? `url(${profile.photo}) center/cover` : profile.color;
     }
     document.getElementById('profile-card-name').textContent = profile.name;
