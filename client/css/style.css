@@ -1,0 +1,238 @@
+/* ---------- Base ---------- */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #e8ecf3;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2430;
+  overflow: hidden;
+}
+
+/* Center the Phaser canvas on screen. */
+#game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 336px); }
+#game-container canvas {
+  image-rendering: pixelated;           /* crisp pixel art */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+}
+
+/* ---------- Start Session popup (Gather-style card, top-right) ---------- */
+.modal {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 20;
+}
+.modal[hidden] { display: none; }
+.modal.is-left { left: 20px; right: auto; }
+.has-people-panel .modal.is-left { left: 356px; }
+
+.modal-card {
+  position: relative;
+  width: 360px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px 24px 26px;
+  box-shadow: 0 16px 48px rgba(20, 24, 40, 0.28);
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #9aa1ad;
+  cursor: pointer;
+}
+.modal-close:hover { color: #55606e; }
+
+.modal-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
+.modal-subtitle { margin: 0 0 16px; font-size: 13px; color: #6b7280; line-height: 1.4; }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: #f1f2f6;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+.tab {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.tab.is-active { background: #ffffff; color: #1f2430; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+
+/* Fields */
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  margin: 12px 0 6px;
+}
+.text-input, .select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #dfe3ea;
+  border-radius: 9px;
+  background: #fff;
+  color: #1f2430;
+}
+.text-input:focus, .select:focus { outline: none; border-color: #6366f1; }
+
+.field-row { display: flex; gap: 10px; }
+.field-col { flex: 1; }
+
+/* Audio picker */
+.audio-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.audio-empty { font-size: 12px; color: #9aa1ad; }
+.audio-chip {
+  border: 1px solid #dfe3ea;
+  background: #f7f8fb;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+}
+.audio-chip:hover { border-color: #c7ccd6; }
+.audio-chip.is-playing { background: #eef0ff; border-color: #6366f1; color: #4338ca; }
+
+.volume-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.volume-icon { font-size: 14px; }
+.volume { flex: 1; accent-color: #6366f1; }
+
+.btn-primary {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: #4f46e5;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.btn-primary:hover { background: #4338ca; }
+
+/* ---------- Running timer HUD (top-center) ---------- */
+.timer-hud {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  background: rgba(20, 24, 40, 0.88);
+  color: #fff;
+  border-radius: 14px;
+  padding: 14px 28px;
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+  min-width: 220px;
+}
+.timer-hud[hidden] { display: none; }
+.timer-phase { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #a5b4fc; }
+.timer-time { font-size: 42px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.timer-topic { font-size: 12px; color: #cbd2e0; min-height: 14px; }
+.timer-controls { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+.timer-control {
+  border: none;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.timer-control:hover { background: rgba(255,255,255,0.24); }
+.timer-control:disabled { opacity: 0.45; cursor: not-allowed; }
+.timer-hud.is-running { background: rgba(49, 46, 129, 0.92); }
+.timer-hud.is-paused { background: rgba(146, 64, 14, 0.92); }
+.timer-hud.is-paused .timer-phase { color: #fde68a; }
+.timer-hud.is-break { background: rgba(6, 78, 59, 0.9); }
+.timer-hud.is-break .timer-phase { color: #6ee7b7; }
+.timer-hud.is-done { background: rgba(55, 65, 81, 0.92); }
+.has-people-panel .timer-hud { margin-left: 168px; }
+
+/* Reopen-session floating button */
+.open-session {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 15;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(79,70,229,0.4);
+}
+.open-session[hidden] { display: none; }
+.open-session:hover { background: #4338ca; }
+
+/* ---------- Multiplayer join + Gather-style people panel ---------- */
+.join-screen {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: rgba(18, 14, 28, 0.88); backdrop-filter: blur(6px);
+}
+.join-screen[hidden], .people-panel[hidden] { display: none; }
+.join-card {
+  width: min(390px, calc(100vw - 32px)); padding: 30px; border-radius: 20px;
+  background: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.38);
+}
+.join-card h1 { margin: 8px 0 4px; font-size: 25px; }
+.join-card p { margin: 0 0 20px; color: #6b7280; }
+.join-mark { font-size: 34px; }
+.avatar-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.avatar-choice {
+  border: 2px solid #e5e7eb; border-radius: 12px; padding: 12px; background: #f8fafc;
+  color: #4b5563; font-weight: 700; cursor: pointer;
+}
+.avatar-choice.is-active { border-color: #4f46e5; color: #4338ca; background: #eef2ff; }
+.people-panel { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 336px; display: flex; background: #fff; }
+.utility-rail { width: 58px; padding: 12px 8px; background: #f4f4f5; border-right: 1px solid #e5e7eb; text-align: center; }
+.rail-logo { display: grid; place-items: center; height: 42px; border-radius: 13px; background: #262626; color: #fff; font-weight: 800; font-size: 12px; }
+.rail-button { width: 42px; height: 42px; margin-top: 14px; border: 0; border-radius: 12px; background: transparent; color: #52525b; font-size: 20px; cursor: pointer; }
+.rail-button.is-active { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.12); color: #4f46e5; }
+.people-sidebar { flex: 1; padding: 20px 18px; overflow: auto; }
+.people-heading { display: flex; align-items: center; justify-content: space-between; font-size: 19px; }
+.connection-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
+.invite-card { display: flex; flex-direction: column; gap: 5px; margin: 24px 0 18px; padding: 16px; border-radius: 14px; background: #eef2ff; border: 1px solid #c7d2fe; }
+.invite-card span { color: #6b7280; font-size: 13px; }
+.people-search { width: 100%; border: 0; border-radius: 10px; padding: 11px 12px; background: #f4f4f5; font-size: 14px; outline: none; }
+.online-title { margin: 20px 0 10px; color: #52525b; font-size: 13px; font-weight: 700; }
+.people-list { display: grid; gap: 7px; }
+.person-row { display: flex; align-items: center; gap: 11px; padding: 8px; border-radius: 11px; }
+.person-row:hover { background: #f8fafc; }
+.person-avatar { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; background: #fed7aa; color: #7c2d12; font-weight: 800; }
+.person-avatar.is-girl { background: #fbcfe8; color: #831843; }
+.person-row strong, .person-row small { display: block; }
+.person-row strong { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.person-row small { margin-top: 2px; color: #16a34a; font-size: 12px; }

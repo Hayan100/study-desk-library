@@ -1,0 +1,13 @@
+{
+  "name": "study-library",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local top-down 2D study library game (Step 1: single-player). Multiplayer arrives in Step 2.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.8.1"
+  }
+}

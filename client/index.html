@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Library</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Phaser 3 from CDN (no build step). -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+  <div id="join-screen" class="join-screen">
+    <form id="join-form" class="join-card">
+      <div class="join-mark">📚</div>
+      <h1>Enter Study Library</h1>
+      <p>Choose how other students will see you.</p>
+      <label class="field-label" for="player-name">Your name</label>
+      <input id="player-name" class="text-input" maxlength="24" required placeholder="Student name" />
+      <div class="avatar-picker">
+        <button type="button" class="avatar-choice is-active" data-avatar="male">Boy</button>
+        <button type="button" class="avatar-choice" data-avatar="girl">Girl</button>
+      </div>
+      <button class="btn-primary" type="submit">Join library</button>
+    </form>
+  </div>
+
+  <aside id="people-panel" class="people-panel" hidden>
+    <nav class="utility-rail" aria-label="Workspace tools">
+      <div class="rail-logo">SD</div>
+      <button class="rail-button is-active" title="People">●</button>
+      <button class="rail-button" title="Map">◇</button>
+      <button class="rail-button" title="Chat">○</button>
+    </nav>
+    <section class="people-sidebar">
+      <div class="people-heading"><strong>STUDY DESK</strong><span class="connection-dot"></span></div>
+      <div class="invite-card"><strong>Study together</strong><span>Quiet company, shared focus.</span></div>
+      <input id="people-search" class="people-search" placeholder="Search people" />
+      <div class="online-title">Online (<span id="online-count">0</span>)</div>
+      <div id="people-list" class="people-list"></div>
+    </section>
+  </aside>
+
+  <!-- Phaser injects its canvas here. -->
+  <div id="game-container"></div>
+
+  <!-- ===================== Start Session popup (HTML overlay) ===================== -->
+  <div id="session-modal" class="modal" hidden>
+    <div class="modal-card">
+      <button id="modal-close" class="modal-close" aria-label="Close">&times;</button>
+      <h2 class="modal-title">Focused study</h2>
+      <p class="modal-subtitle">Built for deep work. Pick a mode, set a timer, and settle in.</p>
+
+      <!-- Mode tabs -->
+      <div class="tabs" role="tablist">
+        <button class="tab is-active" data-mode="focus" role="tab">Focus</button>
+        <button class="tab" data-mode="pomodoro" role="tab">Pomodoro</button>
+      </div>
+
+      <!-- Topic (optional) -->
+      <label class="field-label" for="topic">Topic (optional)</label>
+      <input id="topic" class="text-input" type="text" placeholder="e.g. Organic chemistry" />
+
+      <!-- Duration — Focus mode -->
+      <div id="focus-fields">
+        <label class="field-label" for="focus-duration">Duration</label>
+        <select id="focus-duration" class="select">
+          <option value="25">25 minutes</option>
+          <option value="50">50 minutes</option>
+          <option value="60" selected>60 minutes</option>
+        </select>
+      </div>
+
+      <!-- Duration — Pomodoro mode -->
+      <div id="pomodoro-fields" hidden>
+        <div class="field-row">
+          <div class="field-col">
+            <label class="field-label" for="pomo-focus">Focus length</label>
+            <select id="pomo-focus" class="select">
+              <option value="25" selected>25 minutes</option>
+              <option value="50">50 minutes</option>
+            </select>
+          </div>
+          <div class="field-col">
+            <label class="field-label" for="pomo-break">Break length</label>
+            <select id="pomo-break" class="select">
+              <option value="5" selected>5 minutes</option>
+              <option value="10">10 minutes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sound: calm music picker (options injected from assets/audio) -->
+      <label class="field-label">Sound</label>
+      <div id="audio-options" class="audio-options">
+        <span class="audio-empty">Loading calm music…</span>
+      </div>
+      <div class="volume-row">
+        <span class="volume-icon">🔊</span>
+        <input id="volume" class="volume" type="range" min="0" max="1" step="0.05" value="0.5" />
+      </div>
+
+      <button id="start-session" class="btn-primary">Start Session</button>
+    </div>
+  </div>
+
+  <!-- ===================== Running timer HUD ===================== -->
+  <div id="timer-hud" class="timer-hud" hidden>
+    <div class="timer-phase" id="timer-phase">Focus</div>
+    <div class="timer-time" id="timer-time">00:00</div>
+    <div class="timer-topic" id="timer-topic"></div>
+    <div class="timer-controls">
+      <button id="timer-toggle" class="timer-control">Pause</button>
+      <button id="timer-end" class="timer-control">End</button>
+    </div>
+  </div>
+
+  <!-- Reopen-session button (visible once a session is running / after closing) -->
+  <button id="open-session" class="open-session" hidden>＋ Session</button>
+
+  <!-- ES modules — no bundler needed when served over http. -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
