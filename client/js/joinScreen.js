@@ -16,6 +16,7 @@ export function initJoinScreen() {
     network.join({ name, avatar });
     screen.hidden = true;
     document.getElementById('people-panel').hidden = false;
+    document.getElementById('minimap-frame').hidden = false;
     document.body.classList.add('has-people-panel');
     window.dispatchEvent(new Event('resize'));
   });

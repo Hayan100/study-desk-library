@@ -105,6 +105,7 @@ export class LibraryScene extends Phaser.Scene {
       });
     }
     for (const ch of FF_CHAIRS) this.chairs.push({ ...ch, seatOffsetX: 0 });
+    this.chairs.forEach((chair, index) => { chair.id = `chair-${index}`; });
 
     this.createAnims();
 
@@ -116,6 +117,15 @@ export class LibraryScene extends Phaser.Scene {
     this.setupInput();
     this.setupCamera();
   }
+
+  requestSit(chair) {
+    network.sit(chair, ({ ok }) => {
+      if (ok && !this.player.sitting) this.player.sit(chair);
+      else if (!ok) window.dispatchEvent(new CustomEvent('chair-unavailable'));
+    });
+  }
+
+  releaseChair(state) { network.stand(state); }
 
   // Render one Tiled map at a tile offset, with per-layer depth and collision.
   // opts.carpetCols: columns whose runner tiles (on a collision layer) stay walkable.
@@ -188,21 +198,43 @@ export class LibraryScene extends Phaser.Scene {
     let remote = this.remotePlayers.get(player.id);
     if (!remote) {
       const sprite = this.add.sprite(x, y, player.avatar, 16).setOrigin(0.5, 1).setScale(0.44).setDepth(1000);
+      const overlay = this.add.sprite(x, y, player.avatar, 16).setOrigin(0.5, 1).setScale(0.44).setVisible(false);
       const label = this.add.text(x, y - 78, player.name, {
         fontFamily: 'Arial', fontSize: '9px', color: '#ffffff', backgroundColor: '#4338ca', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 1).setDepth(1001);
-      remote = { sprite, label };
+      const dot = this.add.circle(x, y, 7, 0xf59e0b).setDepth(2000);
+      this.cameras.main.ignore(dot);
+      this.minimapCamera?.ignore([sprite, overlay, label]);
+      remote = { sprite, overlay, label, dot };
       this.remotePlayers.set(player.id, remote);
     }
     remote.sprite.setTexture(player.avatar);
-    this.tweens.killTweensOf([remote.sprite, remote.label]);
+    remote.overlay.setTexture(player.avatar);
+    const chair = player.sitting ? this.chairs.find((item) => item.id === player.chairId) : null;
+    if (chair) {
+      const seatX = (chair.c + ((chair.width || 1) - 1) / 2) * TILE + TILE / 2 + (chair.seatOffsetX || 0);
+      const baseY = (chair.r + 1) * TILE;
+      const seatY = chair.facing === 'up' ? baseY - TILE - 12 : baseY - 12;
+      remote.sprite.setPosition(seatX, seatY).setDepth(chair.facing === 'up' ? 1000 : 2.5)
+        .play(`${player.avatar}-sit-${chair.facing}`, true);
+      remote.overlay.setVisible(chair.facing === 'down').setPosition(seatX, seatY).setDepth(3.5)
+        .setCrop(0, 0, 181, 105);
+      if (chair.facing === 'down') remote.overlay.play(`${player.avatar}-sit-${chair.facing}`, true);
+      remote.label.setPosition(seatX, seatY - 78);
+      remote.dot.setPosition(seatX, seatY);
+      return;
+    }
+    remote.overlay.setVisible(false).setCrop();
+    this.tweens.killTweensOf([remote.sprite, remote.label, remote.dot]);
     if (player.moving) {
       remote.sprite.play(`${player.avatar}-walk-${player.facing}`, true);
       this.tweens.add({ targets: remote.sprite, x, y, duration: 150, ease: 'Linear' });
       this.tweens.add({ targets: remote.label, x, y: y - 78, duration: 150, ease: 'Linear' });
+      this.tweens.add({ targets: remote.dot, x, y, duration: 150, ease: 'Linear' });
     } else {
       remote.sprite.setPosition(x, y).play(`${player.avatar}-idle-${player.facing}`, true);
       remote.label.setPosition(x, y - 78);
+      remote.dot.setPosition(x, y);
     }
   }
 
@@ -210,7 +242,9 @@ export class LibraryScene extends Phaser.Scene {
     const remote = this.remotePlayers.get(id);
     if (!remote) return;
     remote.sprite.destroy();
+    remote.overlay.destroy();
     remote.label.destroy();
+    remote.dot.destroy();
     this.remotePlayers.delete(id);
   }
 
@@ -300,7 +334,7 @@ export class LibraryScene extends Phaser.Scene {
       if (chair) {
         const path = this.findChairApproach(chair);
         if (path.length) this.player.followPath(path, chair);
-        else if (!this.player.moving) this.player.sit(chair);
+        else if (!this.player.moving) this.requestSit(chair);
         return;
       }
       const path = this.findPath(this.player.c, this.player.r, c, r);
@@ -323,6 +357,7 @@ export class LibraryScene extends Phaser.Scene {
       this.minZoom = Math.max(sw / this.worldW, sh / this.worldH);
       cam.setZoom(Phaser.Math.Clamp(cam.zoom, this.minZoom, 2));
       this.updateCamera(true);
+      if (this.minimapCamera) this.minimapCamera.setViewport(18, sh - 178, 160, 160);
     };
     this.applyViewport();
     this.scale.on('resize', this.applyViewport);
@@ -330,6 +365,17 @@ export class LibraryScene extends Phaser.Scene {
       cam.setZoom(Phaser.Math.Clamp(cam.zoom - dy * 0.0015, this.minZoom, 2));
       this.updateCamera(true);
     });
+
+    this.minimapCamera = this.cameras.add(18, this.scale.height - 178, 160, 160)
+      .setBackgroundColor(0x171321)
+      .setZoom(Math.min(148 / this.worldW, 148 / this.worldH));
+    this.minimapCamera.centerOn(this.worldW / 2, this.worldH / 2);
+    this.minimapCamera.ignore([this.player.sprite, this.player.seatedOverlay].filter(Boolean));
+    for (const remote of this.remotePlayers.values()) {
+      this.minimapCamera.ignore([remote.sprite, remote.overlay, remote.label]);
+    }
+    this.localDot = this.add.circle(this.player.sprite.x, this.player.sprite.y, 7, 0x22c55e).setDepth(2000);
+    cam.ignore(this.localDot);
   }
 
   updateCamera(immediate = false) {
@@ -354,6 +400,7 @@ export class LibraryScene extends Phaser.Scene {
 
   update() {
     if (this.player) this.player.update();
+    if (this.localDot && this.player) this.localDot.setPosition(this.player.sprite.x, this.player.sprite.y);
     if (this.player) this.updateCamera();
   }
 }

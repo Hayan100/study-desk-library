@@ -19,6 +19,10 @@ socket.on('player:moved', (player) => {
   players.set(player.id, player);
   scene?.upsertRemotePlayer(player, socket.id);
 });
+for (const event of ['player:seated', 'player:stood']) socket.on(event, (player) => {
+  players.set(player.id, player);
+  scene?.upsertRemotePlayer(player, socket.id);
+});
 socket.on('player:left', (id) => {
   players.delete(id);
   scene?.removeRemotePlayer(id);
@@ -31,6 +35,12 @@ export const network = {
     socket.emit('player:join', profile);
   },
   move(state) { socket.emit('player:move', state); },
+  sit(chair, reply) {
+    socket.emit('chair:sit', {
+      chairId: chair.id, c: chair.c, r: chair.r, facing: chair.facing,
+    }, reply);
+  },
+  stand(state) { socket.emit('chair:stand', state); },
   attachScene(nextScene) {
     scene = nextScene;
     scene.syncRemotePlayers([...players.values()], socket.id);

@@ -10,6 +10,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const players = new Map();
+const occupiedChairs = new Map();
 
 // The game client (index.html, css, js).
 app.use(express.static(path.join(__dirname, 'client')));
@@ -55,7 +56,40 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('player:moved', player);
   });
 
+  socket.on('chair:sit', (next = {}, reply = () => {}) => {
+    const player = players.get(socket.id);
+    const chairId = String(next.chairId || '');
+    if (!player || !chairId || (occupiedChairs.has(chairId) && occupiedChairs.get(chairId) !== socket.id)) {
+      reply({ ok: false });
+      return;
+    }
+    if (player.chairId) occupiedChairs.delete(player.chairId);
+    occupiedChairs.set(chairId, socket.id);
+    Object.assign(player, {
+      chairId, sitting: true, moving: false,
+      c: Number(next.c), r: Number(next.r),
+      facing: ['up', 'down'].includes(next.facing) ? next.facing : 'down',
+    });
+    reply({ ok: true });
+    socket.broadcast.emit('player:seated', player);
+  });
+
+  socket.on('chair:stand', (next = {}) => {
+    const player = players.get(socket.id);
+    if (!player) return;
+    if (player.chairId) occupiedChairs.delete(player.chairId);
+    Object.assign(player, {
+      chairId: null, sitting: false,
+      c: Number.isFinite(next.c) ? next.c : player.c,
+      r: Number.isFinite(next.r) ? next.r : player.r,
+      facing: ['up', 'down', 'left', 'right'].includes(next.facing) ? next.facing : player.facing,
+    });
+    socket.broadcast.emit('player:stood', player);
+  });
+
   socket.on('disconnect', () => {
+    const player = players.get(socket.id);
+    if (player?.chairId) occupiedChairs.delete(player.chairId);
     if (players.delete(socket.id)) io.emit('player:left', socket.id);
   });
 });

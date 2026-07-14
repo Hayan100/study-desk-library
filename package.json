@@ -4,7 +4,8 @@
   "private": true,
   "description": "Local top-down 2D study library game (Step 1: single-player). Multiplayer arrives in Step 2.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:multiplayer": "node test/multiplayer-smoke.js"
   },
   "dependencies": {
     "express": "^4.19.2",

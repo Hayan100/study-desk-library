@@ -87,7 +87,7 @@ export class Player {
         if (!this.path.length && this.pendingChair) {
           const chair = this.pendingChair;
           this.pendingChair = null;
-          this.sit(chair);
+          this.scene.requestSit(chair);
         }
         // TODO(step2 – multiplayer): broadcast new tile position.
       },
@@ -118,7 +118,7 @@ export class Player {
 
     const target = this.findNearbyChair(chairs);
     if (!target) return;
-    this.sit(target);
+    this.scene.requestSit(target);
   }
 
   findNearbyChair(chairs = this.scene.chairs) {
@@ -181,6 +181,7 @@ export class Player {
       this.seatedOverlay.setCrop();
     }
     this.playDir('idle', this.facing);
+    this.scene.releaseChair?.({ c: this.c, r: this.r, facing: this.facing });
     window.dispatchEvent(new CustomEvent('player-stood'));
   }
 
