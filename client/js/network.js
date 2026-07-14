@@ -1,4 +1,6 @@
-const socket = window.io();
+// Fly supports WebSockets directly. Using one persistent transport avoids a dropped
+// long-polling session leaving the local player visible but unregistered.
+const socket = window.io({ transports: ['websocket'] });
 const players = new Map();
 let scene = null;
 let profile = null;
@@ -49,6 +51,7 @@ export const network = {
   join(nextProfile) {
     profile = nextProfile;
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
+    scene?.setLocalAvatar(profile.avatar);
     socket.emit('player:join', { ...profile, roomId });
   },
   move(state, reply = () => {}) { socket.emit('player:move', state, reply); },

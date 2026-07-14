@@ -3,6 +3,10 @@ primary_region = "sin"
 
 [build]
 
+[env]
+  # SECURITY: Socket.IO accepts only this deployed browser origin in production.
+  ALLOWED_ORIGINS = "https://study-desk-library.fly.dev"
+
 [http_service]
   internal_port = 3000
   force_https = true
