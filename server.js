@@ -35,7 +35,7 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 // ---------------------------------------------------------------------------
 
 io.on('connection', (socket) => {
-  socket.on('player:join', ({ name, avatar, color } = {}) => {
+  socket.on('player:join', ({ name, avatar, color, photo } = {}) => {
     if (players.has(socket.id)) return;
     let c = 11, r = 33;
     while (isOccupied(c, r, socket.id)) c += 1;
@@ -44,6 +44,8 @@ io.on('connection', (socket) => {
       name: String(name || 'Student').trim().slice(0, 24) || 'Student',
       avatar: avatar === 'girl' ? 'girl' : 'male',
       color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#86efac',
+      photo: typeof photo === 'string' && /^data:image\/(?:jpeg|png|webp);base64,/.test(photo)
+        && photo.length < 200000 ? photo : null,
       c, r, facing: 'down', moving: false, status: 'Active', topic: '', remainingSec: null,
     };
     players.set(socket.id, player);
@@ -57,6 +59,8 @@ io.on('connection', (socket) => {
     player.name = String(next.name || player.name).trim().slice(0, 24) || player.name;
     player.avatar = next.avatar === 'girl' ? 'girl' : 'male';
     player.color = /^#[0-9a-f]{6}$/i.test(next.color) ? next.color : player.color;
+    player.photo = typeof next.photo === 'string' && /^data:image\/(?:jpeg|png|webp);base64,/.test(next.photo)
+      && next.photo.length < 200000 ? next.photo : player.photo;
     io.emit('player:profile', player);
   });
 

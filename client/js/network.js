@@ -87,7 +87,8 @@ function updateRoster() {
     const initial = document.createElement('span');
     initial.className = `person-avatar is-${player.avatar}`;
     if (player.color) initial.style.background = player.color;
-    initial.textContent = player.name[0].toUpperCase();
+    if (player.photo) { initial.style.background = `url(${player.photo}) center/cover`; initial.textContent = ''; }
+    else initial.textContent = player.name[0].toUpperCase();
     const info = document.createElement('span');
     const name = document.createElement('strong');
     name.textContent = player.id === socket.id ? `${player.name} (You)` : player.name;

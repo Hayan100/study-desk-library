@@ -267,6 +267,21 @@ body.has-people-panel.sidebar-collapsed #game-container { margin-left: 58px; wid
 .avatar-preview { width: 94px; height: 94px; margin-top: 10px; border-radius: 50%; background-color: #e5e7eb; background-repeat: no-repeat; background-size: 376px 1128px; background-position: 0 0; }
 .avatar-preview.is-male { background-image: url('/assets/characters/character_male.png'); }
 .avatar-preview.is-girl { background-image: url('/assets/characters/character_girl.png'); }
-.profile-colors { display: flex; gap: 10px; }
-.profile-colors button { width: 34px; height: 34px; border: 3px solid #fff; border-radius: 50%; background: var(--color); box-shadow: 0 0 0 1px #d1d5db; cursor: pointer; }
-.profile-colors button.is-active { box-shadow: 0 0 0 3px #4f46e5; }
+.editable-preview { position: relative; }
+.edit-pen { position: absolute; right: -2px; bottom: 0; width: 34px; height: 34px; border: 1px solid #d1d5db; border-radius: 11px; background: #fff; font-size: 18px; cursor: pointer; }
+.avatar-editor-panel { position: relative; width: min(980px, calc(100vw - 32px)); min-height: 600px; border-radius: 18px; background: #fff; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,.4); }
+.avatar-editor-panel > h2 { margin: 0; padding: 24px 30px; border-bottom: 1px solid #e5e7eb; }
+.avatar-editor-body { display: grid; grid-template-columns: 210px 1fr 320px; min-height: 460px; }
+.avatar-editor-body > * { padding: 28px; }
+.avatar-editor-body aside { border-right: 1px solid #e5e7eb; background: #fafafa; }
+.avatar-editor-body aside small { display: block; margin-top: 8px; color: #6b7280; }
+.avatar-library { display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 16px; }
+.avatar-card { display: grid; place-items: center; gap: 8px; padding: 18px; border: 2px solid #e5e7eb; border-radius: 15px; background: #f8fafc; cursor: pointer; }
+.avatar-card.is-active { border-color: #4f46e5; background: #eef2ff; }
+.avatar-card .avatar-preview { display: block; margin: 0; }
+.avatar-stage { display: grid; place-items: center; align-content: center; gap: 18px; background: linear-gradient(#e8e7f7 55%, #dff4df 55%); }
+.avatar-stage .avatar-preview { width: 150px; height: 150px; background-size: 600px 1800px; }
+.avatar-stage strong { padding: 7px 13px; border-radius: 8px; background: #202124; color: #fff; }
+.avatar-editor-panel footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 22px; border-top: 1px solid #e5e7eb; }
+.avatar-editor-panel footer button { width: auto; margin: 0; padding: 10px 20px; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer; }
+@media (max-width: 760px) { .avatar-editor-body { grid-template-columns: 1fr; } .avatar-editor-body aside { display: none; } .avatar-stage { min-height: 230px; } }

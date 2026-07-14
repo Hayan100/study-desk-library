@@ -53,25 +53,27 @@
       <button id="profile-modal-close" type="button" class="profile-close" aria-label="Close">&times;</button>
       <h2>Edit Profile</h2>
       <div class="profile-preview-row">
-        <div><span>Profile picture</span><div id="profile-photo-preview" class="profile-photo is-large">S</div></div>
-        <div><span>Avatar</span><div id="profile-avatar-preview" class="avatar-preview"></div></div>
+        <div><span>Profile picture</span><div class="editable-preview"><div id="profile-photo-preview" class="profile-photo is-large">S</div><button id="profile-photo-edit" type="button" class="edit-pen" aria-label="Upload profile picture">&#9998;</button></div></div>
+        <div><span>Avatar</span><div class="editable-preview"><div id="profile-avatar-preview" class="avatar-preview"></div><button id="profile-avatar-edit" type="button" class="edit-pen" aria-label="Edit avatar">&#9998;</button></div></div>
       </div>
+      <input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
       <label class="field-label" for="profile-name">Full name</label>
       <input id="profile-name" class="text-input" maxlength="24" required />
-      <label class="field-label">Profile color</label>
-      <div id="profile-colors" class="profile-colors">
-        <button type="button" data-color="#86efac" style="--color:#86efac"></button>
-        <button type="button" data-color="#f9a8d4" style="--color:#f9a8d4"></button>
-        <button type="button" data-color="#93c5fd" style="--color:#93c5fd"></button>
-        <button type="button" data-color="#fde68a" style="--color:#fde68a"></button>
-      </div>
-      <label class="field-label">Character avatar</label>
-      <div id="profile-avatars" class="avatar-picker">
-        <button type="button" class="avatar-choice" data-avatar="male">Boy</button>
-        <button type="button" class="avatar-choice" data-avatar="girl">Girl</button>
-      </div>
       <button class="btn-primary" type="submit">Save</button>
     </form>
+  </div>
+
+  <div id="avatar-modal" class="profile-backdrop" hidden>
+    <section class="avatar-editor-panel">
+      <button id="avatar-modal-close" type="button" class="profile-close" aria-label="Close">&times;</button>
+      <h2>Edit Avatar</h2>
+      <div class="avatar-editor-body">
+        <aside><strong>Avatars</strong><small>Choose your character</small></aside>
+        <div><div id="avatar-library" class="avatar-library"></div></div>
+        <div class="avatar-stage"><div id="avatar-stage-preview" class="avatar-preview"></div><strong id="avatar-stage-name">Student</strong></div>
+      </div>
+      <footer><button id="avatar-cancel" type="button">Cancel</button><button id="avatar-done" type="button" class="btn-primary">Done</button></footer>
+    </section>
   </div>
   <!-- Phaser injects its canvas here. -->
   <div id="game-container"></div>
