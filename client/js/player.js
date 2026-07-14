@@ -31,6 +31,15 @@ export class Player {
     this.walkAudio = new Audio(WALK_SOUND);
     this.walkAudio.loop = true;
     this.walkAudio.volume = 0.2;
+    // Browsers block media first started from Phaser's animation loop. Prime this
+    // audio element during a real user gesture so later walking playback is allowed.
+    const unlockWalkAudio = () => {
+      this.walkAudio.play().then(() => {
+        if (!this.moving) { this.walkAudio.pause(); this.walkAudio.currentTime = 0; }
+      }).catch(() => {});
+    };
+    window.addEventListener('keydown', unlockWalkAudio, { once: true });
+    window.addEventListener('pointerdown', unlockWalkAudio, { once: true });
 
     const { x, y } = this.tileToPixel(c, r);
     if (scene.textures.exists('male')) {
