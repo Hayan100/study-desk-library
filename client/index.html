@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Study Library</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <!-- Room invite URLs are nested under /room/*, so client assets must resolve from the site root. -->
+  <link rel="stylesheet" href="/css/style.css" />
   <!-- Phaser 3 from CDN (no build step). -->
   <!-- SECURITY: pin and integrity-check the only third-party browser script. -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js" integrity="sha384-Fi7F0CYQBHYa+s2vvYJeiqvOQf3tuZ28vafRGXvMt7ijxNTVf3+eXPkNRIUi9JD2" crossorigin="anonymous"></script>
@@ -166,6 +167,6 @@
 
   <!-- ES modules — no bundler needed when served over http. -->
   <script src="/socket.io/socket.io.js"></script>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>
