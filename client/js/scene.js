@@ -203,6 +203,9 @@ export class LibraryScene extends Phaser.Scene {
     if (!remote) {
       const sprite = this.add.sprite(x, y, player.avatar, 16).setOrigin(0.5, 1).setScale(0.44).setDepth(1000);
       const overlay = this.add.sprite(x, y, player.avatar, 16).setOrigin(0.5, 1).setScale(0.44).setVisible(false);
+      sprite.on('animationupdate', (_animation, frame) => {
+        if (overlay.visible) overlay.setFrame(frame.textureFrame);
+      });
       const label = this.add.text(x, y - 78, player.name, {
         fontFamily: 'Arial', fontSize: '9px', color: '#ffffff', backgroundColor: '#4338ca', padding: { x: 3, y: 2 },
       }).setOrigin(0.5, 1).setDepth(1001);
@@ -220,8 +223,7 @@ export class LibraryScene extends Phaser.Scene {
       remote.sprite.setPosition(seatX, seatY).setDepth(chair.facing === 'up' ? 1000 : 2.5)
         .play(`${player.avatar}-sit-${chair.facing}`, true);
       remote.overlay.setVisible(chair.facing === 'down').setPosition(seatX, seatY).setDepth(3.5)
-        .setCrop(0, 0, 181, 105);
-      if (chair.facing === 'down') remote.overlay.play(`${player.avatar}-sit-${chair.facing}`, true);
+        .setCrop(0, 0, 181, 105).setFrame(remote.sprite.frame.name);
       remote.label.setPosition(seatX, seatY - 78);
       return;
     }

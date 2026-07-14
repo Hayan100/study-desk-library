@@ -40,6 +40,19 @@ function move(ws, packetId, c, r) {
   });
 }
 
+function nextEvent(ws, name) {
+  return new Promise((resolve) => {
+    const handler = ({ data }) => {
+      if (!data.startsWith('42')) return;
+      const packet = JSON.parse(data.slice(2));
+      if (packet[0] !== name) return;
+      ws.removeEventListener('message', handler);
+      resolve(packet[1]);
+    };
+    ws.addEventListener('message', handler);
+  });
+}
+
 (async () => {
   const first = await connect('First');
   const second = await connect('Second');
@@ -50,6 +63,9 @@ function move(ws, packetId, c, r) {
   assert.equal((await move(first, 10, 12, 33)).ok, true);
   assert.equal((await move(second, 11, 12, 33)).ok, false);
   assert.equal((await move(otherRoom, 12, 12, 33)).ok, true);
+  const standingStatus = nextEvent(first, 'player:status');
+  second.send('42["player:status",{"status":"Focusing","topic":"test"}]');
+  assert.equal((await standingStatus).status, 'Paused');
   assert.equal((await sit(first, 1)).ok, true);
   assert.equal((await sit(second, 2)).ok, false);
   assert.equal((await sit(otherRoom, 4)).ok, true);

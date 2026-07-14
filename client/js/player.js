@@ -46,6 +46,9 @@ export class Player {
       this.sprite = scene.add.sprite(x, y, 'male', IDLE_FRAME.down).setOrigin(0.5, 1).setScale(CHARACTER_SCALE);
       this.seatedOverlay = scene.add.sprite(x, y, 'male', IDLE_FRAME.down)
         .setOrigin(0.5, 1).setScale(CHARACTER_SCALE).setVisible(false);
+      this.sprite.on('animationupdate', (_animation, frame) => {
+        if (this.seatedOverlay.visible) this.seatedOverlay.setFrame(frame.textureFrame);
+      });
       this.hasAnims = true;
     } else {
       this.sprite = scene.add.rectangle(x, y, 16, 30, 0x6ca0dc).setOrigin(0.5, 1);
@@ -80,9 +83,7 @@ export class Player {
     this.sprite.setFlipX(false);
     const key = `${this.avatar}-${kind}-${dir}`;
     if (this.sprite.anims.currentAnim?.key !== key) this.sprite.play(key, true);
-    if (this.seatedOverlay?.visible && this.seatedOverlay.anims.currentAnim?.key !== key) {
-      this.seatedOverlay.play(key, true);
-    }
+    if (this.seatedOverlay?.visible) this.seatedOverlay.setFrame(this.sprite.frame.name);
   }
 
   startStep(target, dir) {

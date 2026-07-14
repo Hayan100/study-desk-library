@@ -239,14 +239,23 @@ io.on('connection', (socket) => {
     player.moving = Boolean(input.moving);
     if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = player.moving ? 'Walking' : 'Active';
     reply({ ok: true });
-    socket.to(player.roomId).emit('player:moved', player);
+    // A stop packet between adjacent tiles made remote sprites flicker walk/idle.
+    // Debounce only stops; the next walking packet cancels the brief false stop.
+    clearTimeout(socket.data.stopTimer);
+    if (player.moving) socket.to(player.roomId).emit('player:moved', player);
+    else socket.data.stopTimer = setTimeout(() => {
+      if (players.get(socket.id) === player && !player.moving) socket.to(player.roomId).emit('player:moved', player);
+    }, 80);
   });
 
   socket.on('player:status', (input = {}) => {
     const player = players.get(socket.id);
     if (!player || !allowEvent(socket, 'status', 5) || !input || typeof input !== 'object') return;
     const allowed = ['Active', 'Walking', 'Seated', 'Focusing', 'Paused', 'On Break'];
-    player.status = allowed.includes(input.status) ? input.status : player.status;
+    const requested = allowed.includes(input.status) ? input.status : player.status;
+    // Fly restarts clear in-memory chairs. A reconnecting standing player must not
+    // restore a locally running focus/break label until they sit again.
+    player.status = !player.sitting && ['Focusing', 'On Break'].includes(requested) ? 'Paused' : requested;
     player.topic = safeText(input.topic, '', 60);
     const seconds = Number(input.remainingSec);
     player.remainingSec = Number.isFinite(seconds) ? Math.min(86400, Math.max(0, Math.round(seconds))) : null;
@@ -288,6 +297,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    clearTimeout(socket.data.stopTimer);
     const player = players.get(socket.id);
     if (!player) return;
     if (player.chairId) occupiedChairs.delete(chairKey(player.roomId, player.chairId));
