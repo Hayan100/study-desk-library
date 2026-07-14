@@ -19,7 +19,18 @@ Then open the URL it prints:
 http://localhost:3000
 ```
 
+Opening `/` creates a private room URL. Use the sidebar **Invite** button to copy that URL for friends.
+
 (Set a different port with `PORT=4000 npm start`.)
+
+## Deploy as a separate Fly.io app
+
+1. Change `app` in `fly.toml` if `study-desk-library` is already taken.
+2. Run `fly launch --copy-config --no-deploy`.
+3. Run `fly deploy`.
+4. Keep one Machine while multiplayer state is stored in memory: `fly scale count 1`.
+
+The health check is available at `/health`. Active rooms and occupied chairs reset when the Machine restarts.
 
 ## Controls
 

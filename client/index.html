@@ -34,12 +34,22 @@
     </nav>
     <section class="people-sidebar">
       <div class="people-heading"><strong>STUDY DESK</strong><span class="connection-dot"></span></div>
-      <div class="invite-card"><strong>Study together</strong><span>Quiet company, shared focus.</span></div>
+      <div class="invite-card"><strong>Study together</strong><span>Quiet company, shared focus.</span><button id="invite-open" type="button">Invite</button></div>
       <input id="people-search" class="people-search" placeholder="Search people" />
       <div class="online-title">Online (<span id="online-count">0</span>)</div>
       <div id="people-list" class="people-list"></div>
     </section>
   </aside>
+
+  <div id="invite-modal" class="profile-backdrop" hidden>
+    <section class="invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+      <button id="invite-close" type="button" class="profile-close" aria-label="Close">&times;</button>
+      <h2 id="invite-title">Invite study partners</h2>
+      <p>Anyone with this link can enter this private library room.</p>
+      <label class="field-label" for="invite-link">Invite with this link</label>
+      <div class="invite-link-row"><input id="invite-link" class="text-input" readonly /><button id="invite-copy" class="btn-primary" type="button">Copy</button></div>
+    </section>
+  </div>
 
   <section id="profile-card" class="profile-card" hidden>
     <button id="profile-card-close" class="profile-close" aria-label="Close">&times;</button>

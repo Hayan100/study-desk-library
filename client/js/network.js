@@ -2,6 +2,9 @@ const socket = window.io();
 const players = new Map();
 let scene = null;
 let profile = null;
+const pathRoom = location.pathname.match(/^\/room\/([a-z0-9-]{6,48})\/?$/i)?.[1]?.toLowerCase();
+export const roomId = pathRoom || `room-${crypto.randomUUID().slice(0, 8)}`;
+if (!pathRoom) history.replaceState(null, '', `/room/${roomId}`);
 
 socket.on('players:snapshot', (list) => {
   players.clear();
@@ -44,7 +47,7 @@ export const network = {
   join(nextProfile) {
     profile = nextProfile;
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
-    socket.emit('player:join', profile);
+    socket.emit('player:join', { ...profile, roomId });
   },
   move(state, reply = () => {}) { socket.emit('player:move', state, reply); },
   status(state) { socket.emit('player:status', state); },
@@ -74,7 +77,7 @@ export const network = {
   },
 };
 
-socket.on('connect', () => { if (profile) socket.emit('player:join', profile); });
+socket.on('connect', () => { if (profile) socket.emit('player:join', { ...profile, roomId }); });
 
 function updateRoster() {
   const list = document.getElementById('people-list');

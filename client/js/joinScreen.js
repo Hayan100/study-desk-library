@@ -1,4 +1,4 @@
-import { network } from './network.js';
+import { network, roomId } from './network.js';
 
 const AVATARS = [
   { id: 'male', name: 'Boy' },
@@ -15,6 +15,16 @@ export function initJoinScreen() {
   const card = document.getElementById('profile-card');
   const editor = document.getElementById('profile-modal');
   const avatarEditor = document.getElementById('avatar-modal');
+  const inviteModal = document.getElementById('invite-modal');
+  const inviteUrl = `${location.origin}/room/${roomId}`;
+  document.getElementById('invite-link').value = inviteUrl;
+  document.getElementById('invite-open').addEventListener('click', () => { inviteModal.hidden = false; });
+  document.getElementById('invite-close').addEventListener('click', () => { inviteModal.hidden = true; });
+  document.getElementById('invite-copy').addEventListener('click', async (event) => {
+    await navigator.clipboard.writeText(inviteUrl);
+    event.currentTarget.textContent = 'Copied!';
+    setTimeout(() => { event.currentTarget.textContent = 'Copy'; }, 1400);
+  });
 
   const refreshProfile = () => {
     const initial = (profile.name || 'Student')[0].toUpperCase();

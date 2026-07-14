@@ -236,6 +236,12 @@ body.has-people-panel.sidebar-collapsed #game-container { margin-left: 58px; wid
 .connection-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
 .invite-card { display: flex; flex-direction: column; gap: 5px; margin: 24px 0 18px; padding: 16px; border-radius: 14px; background: #eef2ff; border: 1px solid #c7d2fe; }
 .invite-card span { color: #6b7280; font-size: 13px; }
+.invite-card button { margin-top: 8px; padding: 9px; border: 0; border-radius: 9px; background: #4f46e5; color: #fff; font-weight: 700; cursor: pointer; }
+.invite-dialog { position: relative; width: min(560px, calc(100vw - 32px)); padding: 28px; border-radius: 18px; background: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+.invite-dialog h2 { margin: 0 0 8px; }
+.invite-dialog p { margin: 0 0 22px; color: #6b7280; }
+.invite-link-row { display: flex; gap: 10px; }
+.invite-link-row .btn-primary { width: 100px; margin: 0; }
 .people-search { width: 100%; border: 0; border-radius: 10px; padding: 11px 12px; background: #f4f4f5; font-size: 14px; outline: none; }
 .online-title { margin: 20px 0 10px; color: #52525b; font-size: 13px; font-weight: 700; }
 .people-list { display: grid; gap: 7px; }

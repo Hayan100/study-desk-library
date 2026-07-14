@@ -1,14 +1,14 @@
 const assert = require('assert');
 
-function connect(name) {
+function connect(name, roomId = 'test-room') {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket('ws://localhost:3000/socket.io/?EIO=4&transport=websocket');
+    const ws = new WebSocket(`ws://localhost:${process.env.PORT || 3000}/socket.io/?EIO=4&transport=websocket`);
     let ready = false;
     ws.onmessage = ({ data }) => {
       if (data.startsWith('0')) ws.send('40');
       else if (data.startsWith('40') && !ready) {
         ready = true;
-        ws.send(`42["player:join",{"name":"${name}","avatar":"male"}]`);
+        ws.send(`42["player:join",{"name":"${name}","avatar":"male","roomId":"${roomId}"}]`);
         resolve(ws);
       } else if (data === '2') ws.send('3');
     };
@@ -43,13 +43,17 @@ function move(ws, packetId, c, r) {
 (async () => {
   const first = await connect('First');
   const second = await connect('Second');
+  const otherRoom = await connect('Other', 'other-room');
   assert.equal((await move(first, 10, 20, 20)).ok, true);
   assert.equal((await move(second, 11, 20, 20)).ok, false);
+  assert.equal((await move(otherRoom, 12, 20, 20)).ok, true);
   assert.equal((await sit(first, 1)).ok, true);
   assert.equal((await sit(second, 2)).ok, false);
+  assert.equal((await sit(otherRoom, 4)).ok, true);
   first.close();
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal((await sit(second, 3)).ok, true);
   second.close();
-  console.log('multiplayer movement and chair lock smoke test passed');
+  otherRoom.close();
+  console.log('multiplayer room isolation, movement, and chair lock smoke test passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });
