@@ -18,6 +18,7 @@ html, body {
   justify-content: center;
 }
 body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 336px); }
+body.has-people-panel.sidebar-collapsed #game-container { margin-left: 58px; width: calc(100% - 58px); }
 #game-container canvas {
   image-rendering: pixelated;           /* crisp pixel art */
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
@@ -34,6 +35,7 @@ body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 3
 .modal[hidden] { display: none; }
 .modal.is-left { left: 20px; right: auto; }
 .has-people-panel .modal.is-left { left: 356px; }
+.has-people-panel.sidebar-collapsed .modal.is-left { left: 78px; }
 
 .modal-card {
   position: relative;
@@ -177,6 +179,7 @@ body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 3
 .timer-hud.is-break .timer-phase { color: #6ee7b7; }
 .timer-hud.is-done { background: rgba(55, 65, 81, 0.92); }
 .has-people-panel .timer-hud { margin-left: 168px; }
+.has-people-panel.sidebar-collapsed .timer-hud { margin-left: 29px; }
 
 /* Reopen-session floating button */
 .open-session {
@@ -217,6 +220,13 @@ body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 3
 }
 .avatar-choice.is-active { border-color: #4f46e5; color: #4338ca; background: #eef2ff; }
 .people-panel { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 336px; display: flex; background: #fff; }
+.sidebar-collapsed .people-panel { width: 58px; }
+.sidebar-collapsed .people-sidebar { display: none; }
+.sidebar-toggle {
+  position: absolute; top: 14px; right: 14px; z-index: 2; width: 30px; height: 30px;
+  border: 0; border-radius: 9px; background: #f4f4f5; color: #52525b; cursor: pointer;
+}
+.sidebar-collapsed .sidebar-toggle { right: -44px; background: #262626; color: #fff; }
 .utility-rail { width: 58px; padding: 12px 8px; background: #f4f4f5; border-right: 1px solid #e5e7eb; text-align: center; }
 .rail-logo { display: grid; place-items: center; height: 42px; border-radius: 13px; background: #262626; color: #fff; font-weight: 800; font-size: 12px; }
 .rail-button { width: 42px; height: 42px; margin-top: 14px; border: 0; border-radius: 12px; background: transparent; color: #52525b; font-size: 20px; cursor: pointer; }
@@ -237,3 +247,26 @@ body.has-people-panel #game-container { margin-left: 336px; width: calc(100% - 3
 .person-row > span:last-child { min-width: 0; }
 .person-row strong { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .person-row small { margin-top: 2px; color: #16a34a; font-size: 12px; line-height: 1.25; }
+
+/* Profile card and editor */
+.profile-card {
+  position: fixed; top: 20px; right: 20px; z-index: 45; width: 360px; display: grid;
+  grid-template-columns: 56px 1fr; gap: 14px; align-items: center; padding: 18px;
+  border-radius: 18px; background: #fff; box-shadow: 0 16px 48px rgba(20,24,40,.28);
+}
+.profile-card[hidden], .profile-backdrop[hidden] { display: none; }
+.profile-card small { display: block; margin-top: 4px; color: #6b7280; }
+.profile-card .btn-primary { grid-column: 1 / -1; margin-top: 2px; }
+.profile-close { position: absolute; top: 10px; right: 12px; border: 0; background: none; font-size: 24px; cursor: pointer; color: #6b7280; }
+.profile-photo { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; color: #166534; font-size: 24px; font-weight: 800; }
+.profile-photo.is-large { width: 94px; height: 94px; margin-top: 10px; font-size: 38px; }
+.profile-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(17,24,39,.55); }
+.profile-editor { position: relative; width: min(500px, calc(100vw - 32px)); padding: 28px; border-radius: 18px; background: #fff; box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+.profile-editor h2 { margin: 0 0 24px; }
+.profile-preview-row { display: flex; justify-content: space-around; text-align: center; color: #4b5563; }
+.avatar-preview { width: 94px; height: 94px; margin-top: 10px; border-radius: 50%; background-color: #e5e7eb; background-repeat: no-repeat; background-size: 376px 1128px; background-position: 0 0; }
+.avatar-preview.is-male { background-image: url('/assets/characters/character_male.png'); }
+.avatar-preview.is-girl { background-image: url('/assets/characters/character_girl.png'); }
+.profile-colors { display: flex; gap: 10px; }
+.profile-colors button { width: 34px; height: 34px; border: 3px solid #fff; border-radius: 50%; background: var(--color); box-shadow: 0 0 0 1px #d1d5db; cursor: pointer; }
+.profile-colors button.is-active { box-shadow: 0 0 0 3px #4f46e5; }

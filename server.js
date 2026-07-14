@@ -35,7 +35,7 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 // ---------------------------------------------------------------------------
 
 io.on('connection', (socket) => {
-  socket.on('player:join', ({ name, avatar } = {}) => {
+  socket.on('player:join', ({ name, avatar, color } = {}) => {
     if (players.has(socket.id)) return;
     let c = 11, r = 33;
     while (isOccupied(c, r, socket.id)) c += 1;
@@ -43,11 +43,21 @@ io.on('connection', (socket) => {
       id: socket.id,
       name: String(name || 'Student').trim().slice(0, 24) || 'Student',
       avatar: avatar === 'girl' ? 'girl' : 'male',
+      color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#86efac',
       c, r, facing: 'down', moving: false, status: 'Active', topic: '', remainingSec: null,
     };
     players.set(socket.id, player);
     socket.emit('players:snapshot', [...players.values()]);
     socket.broadcast.emit('player:joined', player);
+  });
+
+  socket.on('player:profile', (next = {}) => {
+    const player = players.get(socket.id);
+    if (!player) return;
+    player.name = String(next.name || player.name).trim().slice(0, 24) || player.name;
+    player.avatar = next.avatar === 'girl' ? 'girl' : 'male';
+    player.color = /^#[0-9a-f]{6}$/i.test(next.color) ? next.color : player.color;
+    io.emit('player:profile', player);
   });
 
   socket.on('player:move', (next = {}, reply = () => {}) => {

@@ -211,6 +211,7 @@ export class LibraryScene extends Phaser.Scene {
     }
     remote.sprite.setTexture(player.avatar);
     remote.overlay.setTexture(player.avatar);
+    remote.label.setText(player.name);
     const chair = player.sitting ? this.chairs.find((item) => item.id === player.chairId) : null;
     if (chair) {
       const seatX = (chair.c + ((chair.width || 1) - 1) / 2) * TILE + TILE / 2 + (chair.seatOffsetX || 0);
@@ -306,7 +307,7 @@ export class LibraryScene extends Phaser.Scene {
   inputLocked() {
     const el = document.activeElement;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return true;
-    return sessionState.open;
+    return sessionState.open || document.body.classList.contains('profile-open');
   }
 
   setupInput() {

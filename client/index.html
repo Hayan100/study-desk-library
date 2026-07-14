@@ -25,6 +25,7 @@
   </div>
 
   <aside id="people-panel" class="people-panel" hidden>
+    <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">&#x25E7;</button>
     <nav class="utility-rail" aria-label="Workspace tools">
       <div class="rail-logo">SD</div>
       <button class="rail-button is-active" title="People">●</button>
@@ -39,6 +40,39 @@
       <div id="people-list" class="people-list"></div>
     </section>
   </aside>
+
+  <section id="profile-card" class="profile-card" hidden>
+    <button id="profile-card-close" class="profile-close" aria-label="Close">&times;</button>
+    <div id="profile-card-photo" class="profile-photo">S</div>
+    <div><strong id="profile-card-name">Student</strong><small>Online in Study Desk</small></div>
+    <button id="profile-edit" class="btn-primary">Edit Profile</button>
+  </section>
+
+  <div id="profile-modal" class="profile-backdrop" hidden>
+    <form id="profile-form" class="profile-editor">
+      <button id="profile-modal-close" type="button" class="profile-close" aria-label="Close">&times;</button>
+      <h2>Edit Profile</h2>
+      <div class="profile-preview-row">
+        <div><span>Profile picture</span><div id="profile-photo-preview" class="profile-photo is-large">S</div></div>
+        <div><span>Avatar</span><div id="profile-avatar-preview" class="avatar-preview"></div></div>
+      </div>
+      <label class="field-label" for="profile-name">Full name</label>
+      <input id="profile-name" class="text-input" maxlength="24" required />
+      <label class="field-label">Profile color</label>
+      <div id="profile-colors" class="profile-colors">
+        <button type="button" data-color="#86efac" style="--color:#86efac"></button>
+        <button type="button" data-color="#f9a8d4" style="--color:#f9a8d4"></button>
+        <button type="button" data-color="#93c5fd" style="--color:#93c5fd"></button>
+        <button type="button" data-color="#fde68a" style="--color:#fde68a"></button>
+      </div>
+      <label class="field-label">Character avatar</label>
+      <div id="profile-avatars" class="avatar-picker">
+        <button type="button" class="avatar-choice" data-avatar="male">Boy</button>
+        <button type="button" class="avatar-choice" data-avatar="girl">Girl</button>
+      </div>
+      <button class="btn-primary" type="submit">Save</button>
+    </form>
+  </div>
   <!-- Phaser injects its canvas here. -->
   <div id="game-container"></div>
 

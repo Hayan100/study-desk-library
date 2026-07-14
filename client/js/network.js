@@ -24,6 +24,11 @@ socket.on('player:status', (player) => {
   players.set(player.id, player);
   updateRoster();
 });
+socket.on('player:profile', (player) => {
+  players.set(player.id, player);
+  scene?.upsertRemotePlayer(player, socket.id);
+  updateRoster();
+});
 for (const event of ['player:seated', 'player:stood']) socket.on(event, (player) => {
   players.set(player.id, player);
   scene?.upsertRemotePlayer(player, socket.id);
@@ -43,6 +48,12 @@ export const network = {
   },
   move(state, reply = () => {}) { socket.emit('player:move', state, reply); },
   status(state) { socket.emit('player:status', state); },
+  updateProfile(nextProfile) {
+    profile = { ...profile, ...nextProfile };
+    localStorage.setItem('study-desk-profile', JSON.stringify(profile));
+    scene?.setLocalAvatar(profile.avatar);
+    socket.emit('player:profile', profile);
+  },
   savedProfile() {
     try { return JSON.parse(localStorage.getItem('study-desk-profile')); } catch { return null; }
   },
@@ -75,6 +86,7 @@ function updateRoster() {
     row.className = 'person-row';
     const initial = document.createElement('span');
     initial.className = `person-avatar is-${player.avatar}`;
+    if (player.color) initial.style.background = player.color;
     initial.textContent = player.name[0].toUpperCase();
     const info = document.createElement('span');
     const name = document.createElement('strong');

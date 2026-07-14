@@ -44,6 +44,10 @@ export class Player {
       this.hasAnims = false;
     }
     this.sprite.setDepth(1000); // above all map layers
+    this.sprite.setInteractive({ useHandCursor: true }).on('pointerdown', (pointer, x, y, event) => {
+      event.stopPropagation();
+      window.dispatchEvent(new Event('open-profile'));
+    });
   }
 
   tileToPixel(c, r) {
