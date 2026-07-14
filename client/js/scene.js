@@ -187,7 +187,7 @@ export class LibraryScene extends Phaser.Scene {
   broadcastPlayer(state) { network.move(state); }
 
   requestMove(target, facing, reply) {
-    network.move({ ...target, facing, moving: true }, ({ ok } = {}) => reply(Boolean(ok)));
+    network.move({ ...target, facing, moving: true }, (response = {}) => reply(Boolean(response.ok), response));
   }
 
   syncRemotePlayers(players, selfId) {

@@ -77,10 +77,20 @@ export class Player {
   }
 
   startStep(target, dir) {
+    const origin = { c: this.c, r: this.r };
     this.moving = true;
-    this.scene.requestMove(target, dir, (ok) => {
-      if (ok) this.performStep(target, dir);
-      else { this.moving = false; this.playDir('idle', dir); }
+    this.performStep(target, dir);
+    this.scene.requestMove(target, dir, (ok, canonical = origin) => {
+      if (ok) return;
+      // The old flow waited for the network round trip before every tile, which
+      // made deployed movement stutter. Move optimistically, but correct rejected moves.
+      this.scene.tweens.killTweensOf(this.sprite);
+      this.c = Number.isInteger(canonical.c) ? canonical.c : origin.c;
+      this.r = Number.isInteger(canonical.r) ? canonical.r : origin.r;
+      this.moving = false; this.path = [];
+      const { x, y } = this.tileToPixel(this.c, this.r);
+      this.sprite.setPosition(x, y);
+      this.playDir('idle', dir);
     });
   }
 
@@ -93,7 +103,11 @@ export class Player {
       targets: this.sprite, x, y, duration: STEP_MS, ease: 'Linear',
       onComplete: () => {
         this.c = target.c; this.r = target.r; this.moving = false;
-        this.scene.broadcastPlayer?.({ c: this.c, r: this.r, facing: this.facing, moving: false });
+        // Keep the walk animation continuous across adjacent tiles. Only broadcast
+        // idle once the key/path ends, rather than stopping remote players every tile.
+        if (!this.path.length && !this.readDirKeys()) {
+          this.scene.broadcastPlayer?.({ c: this.c, r: this.r, facing: this.facing, moving: false });
+        }
         if (!this.path.length && this.pendingChair) {
           const chair = this.pendingChair;
           this.pendingChair = null;

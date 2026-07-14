@@ -230,7 +230,9 @@ io.on('connection', (socket) => {
     const distance = player && c !== null && r !== null ? Math.abs(c - player.c) + Math.abs(r - player.r) : Infinity;
     // SECURITY: the server used to accept teleports and arbitrary coordinates. Only one-tile moves owned by this socket pass.
     if (!player || !allowEvent(socket, 'move', 30) || player.sitting || c === null || r === null || distance > 1
-      || blockedTiles.has(`${c},${r}`) || isOccupied(player.roomId, c, r, socket.id)) return reply({ ok: false });
+      || blockedTiles.has(`${c},${r}`) || isOccupied(player.roomId, c, r, socket.id)) {
+      return reply({ ok: false, c: player?.c, r: player?.r });
+    }
     player.c = c;
     player.r = r;
     if (['up', 'down', 'left', 'right'].includes(input.facing)) player.facing = input.facing;
