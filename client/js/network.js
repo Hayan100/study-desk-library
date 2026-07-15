@@ -1,6 +1,6 @@
 // Fly supports WebSockets directly. Using one persistent transport avoids a dropped
 // long-polling session leaving the local player visible but unregistered.
-const socket = window.io({ transports: ['websocket'] });
+const socket = window.io({ transports: ['websocket'], autoConnect: false });
 const players = new Map();
 let scene = null;
 let profile = null;
@@ -48,11 +48,32 @@ socket.on('player:left', (id) => {
 });
 
 export const network = {
+  async authState() {
+    const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('Could not check sign-in status');
+    return response.json();
+  },
+  async signInWithGoogle(credential) {
+    const response = await fetch('/api/auth/google', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Google sign-in failed');
+    return result.user;
+  },
+  async logout() {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    localStorage.removeItem('study-desk-profile');
+    socket.disconnect();
+  },
   join(nextProfile) {
     profile = nextProfile;
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
     scene?.setLocalAvatar(profile.avatar);
-    socket.emit('player:join', { ...profile, roomId });
+    if (socket.connected) socket.emit('player:join', { ...profile, roomId });
+    else socket.connect();
   },
   move(state, reply = () => {}) { socket.emit('player:move', state, reply); },
   status(state) { socket.emit('player:status', state); },
@@ -62,15 +83,17 @@ export const network = {
     scene?.setLocalAvatar(profile.avatar);
     socket.emit('player:profile', profile);
   },
-  savedProfile() {
+  savedProfile(accountId = null) {
     try {
       const saved = JSON.parse(localStorage.getItem('study-desk-profile'));
       // SECURITY: localStorage is user-controlled, so only the expected profile shape is restored.
-      if (!saved || typeof saved !== 'object' || typeof saved.name !== 'string') return null;
+      if (!saved || typeof saved !== 'object' || typeof saved.name !== 'string'
+        || (accountId && saved.accountId !== accountId)) return null;
       return {
         name: saved.name.slice(0, 24),
         avatar: saved.avatar === 'girl' ? 'girl' : 'male',
         color: /^#[0-9a-f]{6}$/i.test(saved.color) ? saved.color : '#86efac',
+        accountId: typeof saved.accountId === 'string' ? saved.accountId : null,
         photo: typeof saved.photo === 'string' && saved.photo.length < 200000
           && /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i.test(saved.photo) ? saved.photo : null,
       };
@@ -94,6 +117,9 @@ export const network = {
 };
 
 socket.on('connect', () => { if (profile) socket.emit('player:join', { ...profile, roomId }); });
+socket.on('connect_error', (error) => {
+  window.dispatchEvent(new CustomEvent('network-error', { detail: error.message || 'Connection failed' }));
+});
 
 function updateRoster() {
   const list = document.getElementById('people-list');

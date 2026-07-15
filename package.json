@@ -2,16 +2,19 @@
   "name": "study-library",
   "version": "0.1.0",
   "private": true,
-  "description": "Local top-down 2D study library game (Step 1: single-player). Multiplayer arrives in Step 2.",
+  "description": "Multiplayer top-down study library with focus sessions.",
   "engines": {
     "node": ">=22 <25"
   },
   "scripts": {
     "start": "node server.js",
+    "test:auth": "node test/auth-smoke.js",
     "test:multiplayer": "node test/multiplayer-smoke.js"
   },
   "dependencies": {
+    "cookie-session": "2.1.1",
     "express": "4.22.2",
+    "google-auth-library": "10.9.0",
     "helmet": "8.1.0",
     "socket.io": "4.8.1"
   }

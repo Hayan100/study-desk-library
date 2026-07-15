@@ -23,7 +23,3 @@ new Phaser.Game(config);
 // The Start Session popup + timer are plain DOM, independent of Phaser.
 initSession();
 initJoinScreen();
-
-// TODO(step2 – multiplayer): after connecting the Socket.io client here, pass the
-// socket into the scene (e.g. scene.registry.set('socket', socket)) so it can emit
-// join / position / sit events and render remote players.

@@ -1,10 +1,10 @@
-# Study Library — Step 1 (single-player)
+# Study Desk Library
 
 A cozy top-down 2D "study library" you can walk around in, sit at a reading desk,
 and run a focus/pomodoro session with calm background music. Local testing only.
 
 Built with plain HTML/CSS/JS + [Phaser 3](https://phaser.io) (loaded from a CDN)
-and a tiny Express static server. **No build step.**
+and an Express + Socket.IO server. **No build step.**
 
 ## Install & run
 
@@ -25,10 +25,20 @@ Opening `/` creates a private room URL. Use the sidebar **Invite** button to cop
 
 ## Deploy as a separate Fly.io app
 
-1. Change `app` in `fly.toml` if `study-desk-library` is already taken.
-2. Run `fly launch --copy-config --no-deploy`.
-3. Run `fly deploy`.
-4. Keep one Machine while multiplayer state is stored in memory: `fly scale count 1`.
+Production requires Google authentication:
+
+1. In Google Cloud, create an OAuth client with application type **Web application**.
+2. Add `http://localhost:3000` and `https://study-desk-library.fly.dev` as Authorized JavaScript origins.
+3. Set the public client ID and a random session signing secret:
+
+   ```bash
+   fly secrets set GOOGLE_CLIENT_ID="your-id.apps.googleusercontent.com" SESSION_SECRET="a-random-value-at-least-32-characters"
+   ```
+
+4. Run `fly deploy --ha=false`.
+5. Keep one Machine while multiplayer state is stored in memory: `fly scale count 1`.
+
+Local development stays in guest mode unless `GOOGLE_CLIENT_ID` and `SESSION_SECRET` are set.
 
 The health check is available at `/health`. Active rooms and occupied chairs reset when the Machine restarts.
 
@@ -60,5 +70,5 @@ falls back to a colored placeholder and logs the expected path to the console
 
 ---
 
-> **Step 2** adds Socket.io multiplayer (see the `TODO(step2 …)` comments in
-> `server.js` and the client `js/` modules for the exact hook points).
+Google credentials are verified by the server. The browser receives only a signed,
+HTTP-only Study Desk session cookie; no Google access token is stored.

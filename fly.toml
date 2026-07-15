@@ -6,6 +6,8 @@ primary_region = "sin"
 [env]
   # SECURITY: Socket.IO accepts only this deployed browser origin in production.
   ALLOWED_ORIGINS = "https://study-desk-library.fly.dev"
+  # GOOGLE_CLIENT_ID and SESSION_SECRET are Fly secrets; deployment fails closed without them.
+  AUTH_REQUIRED = "true"
 
 [http_service]
   internal_port = 3000

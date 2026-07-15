@@ -8,9 +8,12 @@ const AVATARS = [
 export function initJoinScreen() {
   const screen = document.getElementById('join-screen');
   const form = document.getElementById('join-form');
+  const authStep = document.getElementById('auth-step');
+  const authMessage = document.getElementById('auth-message');
   const choices = [...form.querySelectorAll('.avatar-choice')];
   let avatar = 'male';
   let profile = null;
+  let account = null;
   const toggle = document.getElementById('sidebar-toggle');
   const card = document.getElementById('profile-card');
   const editor = document.getElementById('profile-modal');
@@ -55,9 +58,10 @@ export function initJoinScreen() {
       choice.classList.toggle('is-active', choice.dataset.avatar === profile.avatar));
   };
 
-  const enter = (profile) => {
-    profile.color ||= '#86efac';
-    network.join(profile);
+  const enter = (nextProfile) => {
+    nextProfile.color ||= '#86efac';
+    profile = nextProfile;
+    network.join(nextProfile);
     screen.hidden = true;
     document.getElementById('people-panel').hidden = false;
     document.body.classList.add('has-people-panel');
@@ -75,6 +79,11 @@ export function initJoinScreen() {
   const closeCard = () => { card.hidden = true; };
   window.addEventListener('open-profile', openCard);
   document.getElementById('profile-card-close').addEventListener('click', closeCard);
+  document.getElementById('profile-logout').addEventListener('click', async () => {
+    await network.logout();
+    window.google?.accounts?.id?.disableAutoSelect();
+    location.reload();
+  });
   document.getElementById('profile-edit').addEventListener('click', () => {
     closeCard(); refreshProfile();
     document.getElementById('profile-name').value = profile.name;
@@ -144,16 +153,69 @@ export function initJoinScreen() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const name = document.getElementById('player-name').value.trim() || 'Student';
-    profile = { name, avatar, color: '#86efac' };
+    profile = { name, avatar, color: '#86efac', accountId: account?.id || null };
     enter(profile);
   });
 
-  const saved = network.savedProfile();
-  if (saved?.name && ['male', 'girl'].includes(saved.avatar)) {
-    document.getElementById('player-name').value = saved.name;
-    avatar = saved.avatar;
-    choices.forEach((choice) => choice.classList.toggle('is-active', choice.dataset.avatar === avatar));
-    profile = { color: '#86efac', ...saved };
-    enter(profile);
-  }
+  const showProfileStep = (user = null) => {
+    account = user;
+    authStep.hidden = true;
+    const saved = network.savedProfile(user?.id || null);
+    if (saved?.name && ['male', 'girl'].includes(saved.avatar)) {
+      document.getElementById('player-name').value = saved.name;
+      avatar = saved.avatar;
+      choices.forEach((choice) => choice.classList.toggle('is-active', choice.dataset.avatar === avatar));
+      enter({ color: '#86efac', ...saved, accountId: user?.id || saved.accountId || null });
+      return;
+    }
+    document.getElementById('player-name').value = user?.name || '';
+    form.hidden = false;
+  };
+
+  const waitForGoogle = () => {
+    if (window.google?.accounts?.id) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      // Load Google's managed button only when authentication is configured, so
+      // guest-mode development does not contact a third party unnecessarily.
+      const script = document.createElement('script');
+      script.id = 'google-identity-script';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      const timeout = setTimeout(() => reject(new Error('Google sign-in did not load')), 10000);
+      script.addEventListener('load', () => { clearTimeout(timeout); resolve(); }, { once: true });
+      script.addEventListener('error', () => { clearTimeout(timeout); reject(new Error('Google sign-in did not load')); }, { once: true });
+      document.head.append(script);
+    });
+  };
+
+  const start = async () => {
+    const state = await network.authState();
+    if (!state.enabled || state.user) {
+      showProfileStep(state.user);
+      return;
+    }
+    authStep.hidden = false;
+    await waitForGoogle();
+    window.google.accounts.id.initialize({
+      client_id: state.clientId,
+      callback: async ({ credential }) => {
+        authMessage.textContent = 'Signing in...';
+        try {
+          const user = await network.signInWithGoogle(credential);
+          authMessage.textContent = '';
+          showProfileStep(user);
+        } catch (error) {
+          authMessage.textContent = error.message;
+        }
+      },
+    });
+    window.google.accounts.id.renderButton(document.getElementById('google-signin'), {
+      type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', width: 330,
+    });
+  };
+
+  start().catch((error) => {
+    authStep.hidden = false;
+    authMessage.textContent = error.message || 'Sign-in is temporarily unavailable';
+  });
 }

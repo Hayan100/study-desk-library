@@ -12,7 +12,14 @@
 </head>
 <body>
   <div id="join-screen" class="join-screen">
-    <form id="join-form" class="join-card">
+    <section id="auth-step" class="join-card auth-card" hidden>
+      <div class="join-mark">&#128218;</div>
+      <h1>Enter Study Library</h1>
+      <p>Sign in so your study partners know it is really you.</p>
+      <div id="google-signin" class="google-signin"></div>
+      <p id="auth-message" class="auth-message" role="status"></p>
+    </section>
+    <form id="join-form" class="join-card" hidden>
       <div class="join-mark">📚</div>
       <h1>Enter Study Library</h1>
       <p>Choose how other students will see you.</p>
@@ -58,6 +65,7 @@
     <div id="profile-card-photo" class="profile-photo">S</div>
     <div><strong id="profile-card-name">Student</strong><small>Online in Study Desk</small></div>
     <button id="profile-edit" class="btn-primary">Edit Profile</button>
+    <button id="profile-logout" class="profile-logout" type="button">Sign out</button>
   </section>
 
   <div id="profile-modal" class="profile-backdrop" hidden>

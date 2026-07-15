@@ -2,6 +2,9 @@
 
 const express = require('express');
 const fs = require('fs');
+const cookieSession = require('cookie-session');
+const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const helmet = require('helmet');
 const http = require('http');
 const path = require('path');
@@ -11,11 +14,27 @@ const app = express();
 const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const AUTH_REQUIRED = process.env.AUTH_REQUIRED === 'true';
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+const SESSION_SECRET = String(process.env.SESSION_SECRET || '');
+const AUTH_ENABLED = Boolean(GOOGLE_CLIENT_ID && SESSION_SECRET.length >= 32);
+if (AUTH_REQUIRED && !AUTH_ENABLED) {
+  throw new Error('AUTH_REQUIRED needs GOOGLE_CLIENT_ID and a SESSION_SECRET of at least 32 characters');
+}
 const WORLD_COLS = 44;
 const WORLD_ROWS = 44;
 const MAX_PHOTO_BYTES = 200000;
 const configuredOrigins = new Set((process.env.ALLOWED_ORIGINS || '')
   .split(',').map((origin) => origin.trim()).filter(Boolean));
+const googleClient = AUTH_ENABLED ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const sessionMiddleware = cookieSession({
+  name: IS_PRODUCTION ? '__Host-study_desk_session' : 'study_desk_session',
+  keys: AUTH_ENABLED ? [SESSION_SECRET] : ['development-only-session-key-not-used'],
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: IS_PRODUCTION,
+});
 
 // SECURITY: cross-origin Socket.IO handshakes were unrestricted. Accept same-origin
 // browser traffic plus explicitly configured origins; production rejects originless clients.
@@ -32,9 +51,11 @@ function isAllowedOrigin(request) {
 }
 
 const connectionAttempts = new Map();
+const authAttempts = new Map();
+const requestIp = (request) => request.headers['fly-client-ip'] || request.socket.remoteAddress || 'unknown';
 function allowConnection(request, done) {
   if (!isAllowedOrigin(request)) return done('origin not allowed', false);
-  const ip = request.headers['fly-client-ip'] || request.socket.remoteAddress || 'unknown';
+  const ip = requestIp(request);
   const now = Date.now();
   const recent = (connectionAttempts.get(ip) || []).filter((time) => now - time < 60000);
   if (recent.length >= 30) return done('too many connection attempts', false);
@@ -43,16 +64,34 @@ function allowConnection(request, done) {
   return done(null, true);
 }
 
+function allowAuth(request) {
+  const ip = requestIp(request);
+  const now = Date.now();
+  const recent = (authAttempts.get(ip) || []).filter((time) => now - time < 60000);
+  if (recent.length >= 10) return false;
+  recent.push(now);
+  authAttempts.set(ip, recent);
+  return true;
+}
+
 const io = new Server(server, {
   // SECURITY: bounded payloads and connection attempts prevent oversized profile and handshake floods.
   maxHttpBufferSize: 220000,
   allowRequest: allowConnection,
+});
+io.engine.use(sessionMiddleware);
+io.use((socket, next) => {
+  // SECURITY: the browser profile is display data, not identity. Production sockets
+  // are admitted only when the signed server session contains a verified Google account.
+  if (AUTH_ENABLED && !socket.request.session?.user?.sub) return next(new Error('authentication required'));
+  return next();
 });
 
 const players = new Map();
 const occupiedChairs = new Map();
 const blockedTiles = new Set();
 const validRoomId = (value) => /^[a-z0-9-]{6,48}$/.test(value) ? value : null;
+const publicUserId = (subject) => crypto.createHmac('sha256', SESSION_SECRET).update(subject).digest('hex').slice(0, 24);
 const chairKey = (roomId, chairId) => `${roomId}:${chairId}`;
 const roomPlayers = (roomId) => [...players.values()].filter((player) => player.roomId === roomId);
 const isOccupied = (roomId, c, r, exceptId) => roomPlayers(roomId)
@@ -144,6 +183,11 @@ setInterval(() => {
     if (recent.length) connectionAttempts.set(ip, recent);
     else connectionAttempts.delete(ip);
   }
+  for (const [ip, times] of authAttempts) {
+    const recent = times.filter((time) => time >= cutoff);
+    if (recent.length) authAttempts.set(ip, recent);
+    else authAttempts.delete(ip);
+  }
 }, 60000).unref();
 
 app.disable('x-powered-by');
@@ -154,13 +198,14 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'],
-      styleSrc: ["'self'"],
+      scriptSrc: ["'self'", 'https://cdn.jsdelivr.net', 'https://accounts.google.com/gsi/client'],
+      styleSrc: ["'self'", 'https://accounts.google.com/gsi/style'],
       // Phaser and profile previews set element.style at runtime; allow style attributes without allowing inline scripts.
       styleSrcAttr: ["'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       mediaSrc: ["'self'"],
-      connectSrc: ["'self'", 'ws:', 'wss:'],
+      connectSrc: ["'self'", 'ws:', 'wss:', 'https://accounts.google.com/gsi/'],
+      frameSrc: ["'self'", 'https://accounts.google.com/gsi/'],
       workerSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
       baseUri: ["'none'"],
@@ -170,8 +215,11 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   strictTransportSecurity: IS_PRODUCTION ? { maxAge: 31536000, includeSubDomains: true } : false,
 }));
+app.use(sessionMiddleware);
+app.use('/api/auth', express.json({ limit: '8kb', strict: true }));
 
 app.use((req, res, next) => {
   // SECURITY: Fly terminates TLS; reject accidental plaintext production requests without breaking health checks.
@@ -181,6 +229,40 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (_req, res) => res.status(200).json({ ok: true }));
+app.get('/api/auth/me', (req, res) => {
+  const sessionUser = AUTH_ENABLED ? req.session?.user : null;
+  res.json({
+    enabled: AUTH_ENABLED,
+    clientId: AUTH_ENABLED ? GOOGLE_CLIENT_ID : null,
+    user: sessionUser ? {
+      id: publicUserId(sessionUser.sub),
+      name: sessionUser.name,
+    } : null,
+  });
+});
+app.post('/api/auth/google', async (req, res) => {
+  if (!AUTH_ENABLED) return res.status(404).json({ error: 'Authentication is not configured' });
+  if (!allowAuth(req)) return res.status(429).json({ error: 'Too many sign-in attempts' });
+  const credential = typeof req.body?.credential === 'string' && req.body.credential.length <= 10000
+    ? req.body.credential : '';
+  if (!credential) return res.status(400).json({ error: 'Google credential is required' });
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || payload.email_verified !== true) throw new Error('unverified Google account');
+    // SECURITY: store only Google's stable subject and a bounded display name. The raw
+    // Google credential, email, and access tokens never enter the session or client state.
+    req.session.user = { sub: payload.sub, name: safeText(payload.name, 'Student', 64) };
+    const id = publicUserId(payload.sub);
+    return res.json({ user: { id, name: req.session.user.name } });
+  } catch {
+    return res.status(401).json({ error: 'Google sign-in could not be verified' });
+  }
+});
+app.post('/api/auth/logout', (req, res) => {
+  req.session = null;
+  res.status(204).end();
+});
 app.use(express.static(path.join(__dirname, 'client'), { dotfiles: 'deny', index: 'index.html' }));
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { dotfiles: 'deny', fallthrough: false }));
 app.get('/room/:roomId', (req, res, next) => {
@@ -200,6 +282,9 @@ io.on('connection', (socket) => {
     const { c, r } = spawn;
     const player = {
       id: socket.id,
+      userId: socket.request.session?.user?.sub
+        ? publicUserId(socket.request.session.user.sub)
+        : socket.id,
       roomId,
       name: safeText(input.name, 'Student', 24),
       avatar: input.avatar === 'girl' ? 'girl' : 'male',
