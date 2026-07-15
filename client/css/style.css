@@ -87,6 +87,24 @@ html, body {
 .game-prompt[hidden] { display: none; }
 .has-people-panel .game-prompt { left: calc(50% + 168px); }
 .has-people-panel.sidebar-collapsed .game-prompt { left: calc(50% + 29px); }
+
+.walkthrough {
+  position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; padding: 24px;
+  background: rgba(10, 5, 2, .58); backdrop-filter: blur(3px);
+}
+.walkthrough[hidden] { display: none; }
+.walkthrough-card {
+  width: min(430px, calc(100vw - 32px)); padding: 28px; border: 2px solid #c47b12; border-radius: 14px;
+  background: linear-gradient(145deg, #fffaf0, #fff 70%); box-shadow: 0 24px 70px #0009, inset 0 0 0 2px #f7d899;
+}
+.walkthrough-skip { float: right; border: 0; background: transparent; color: #7c5a39; cursor: pointer; font-weight: 700; }
+.walkthrough-count { color: #9a6219; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.walkthrough-icon { margin: 24px 0 12px; font-size: 42px; }
+.walkthrough-card h2 { margin: 0 0 8px; color: #3f210d; font-family: Georgia, 'Times New Roman', serif; }
+.walkthrough-card p { min-height: 50px; margin: 0; color: #67472f; line-height: 1.55; }
+.walkthrough-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.walkthrough-actions button { padding: 10px 18px; border: 1px solid #d7b06f; border-radius: 8px; background: #fff8e9; color: #6b3c12; cursor: pointer; font-weight: 800; }
+.walkthrough-actions #walkthrough-next { border-color: #a95c0b; background: linear-gradient(#d98616, #a94f08); color: #fff; }
 @media (prefers-reduced-motion: reduce) {
   .loading-screen, .loading-progress { transition: none; }
 }

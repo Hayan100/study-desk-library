@@ -39,6 +39,47 @@ export function initJoinScreen() {
   const loadingProgressbar = document.getElementById('loading-progressbar');
   const loadingPercent = document.getElementById('loading-percent');
   const loadingStatus = document.getElementById('loading-status');
+  const walkthrough = document.getElementById('walkthrough');
+  const walkthroughSteps = [
+    ['\u{1F44B}', 'Welcome to your library', 'Move with WASD or the arrow keys. You can also click an open floor tile.'],
+    ['E', 'Take a study seat', 'Walk near a chair. When the subtitle says “Press E to sit,” press E. Press it again to stand.'],
+    ['C', 'Talk to nearby students', 'Walk close to someone and press C when the white bubble appears. Click the map to return to movement.'],
+    ['\u{1F4DA}', 'Use your sidebar', 'You are always listed first. See who is active, open chat, and manage your focus time here.'],
+  ];
+  let walkthroughIndex = 0;
+  const walkthroughKey = () => `study-desk-walkthrough:${profile?.accountId || profile?.name || 'guest'}`;
+  const finishWalkthrough = () => {
+    walkthrough.hidden = true;
+    document.body.classList.remove('profile-open');
+    try { localStorage.setItem(walkthroughKey(), 'done'); } catch { /* storage can be unavailable */ }
+  };
+  const renderWalkthrough = () => {
+    const [icon, title, copy] = walkthroughSteps[walkthroughIndex];
+    document.getElementById('walkthrough-icon').textContent = icon;
+    document.getElementById('walkthrough-title').textContent = title;
+    document.getElementById('walkthrough-copy').textContent = copy;
+    document.getElementById('walkthrough-count').textContent = `${walkthroughIndex + 1} of ${walkthroughSteps.length}`;
+    document.getElementById('walkthrough-back').hidden = walkthroughIndex === 0;
+    document.getElementById('walkthrough-next').textContent = walkthroughIndex === walkthroughSteps.length - 1 ? 'Start studying' : 'Next';
+  };
+  const showWalkthrough = () => {
+    try { if (localStorage.getItem(walkthroughKey())) return; } catch { /* show the tour if storage is unavailable */ }
+    walkthroughIndex = 0;
+    renderWalkthrough();
+    walkthrough.hidden = false;
+    document.body.classList.add('profile-open');
+    document.getElementById('walkthrough-next').focus();
+  };
+  document.getElementById('walkthrough-skip').addEventListener('click', finishWalkthrough);
+  document.getElementById('walkthrough-back').addEventListener('click', () => {
+    walkthroughIndex = Math.max(0, walkthroughIndex - 1);
+    renderWalkthrough();
+  });
+  document.getElementById('walkthrough-next').addEventListener('click', () => {
+    if (walkthroughIndex === walkthroughSteps.length - 1) { finishWalkthrough(); return; }
+    walkthroughIndex += 1;
+    renderWalkthrough();
+  });
   const setLoading = (percent, status) => {
     const value = Math.max(0, Math.min(100, Math.round(percent)));
     loadingProgress.style.width = `${value}%`;
@@ -68,7 +109,7 @@ export function initJoinScreen() {
       setLoading(100, 'Library ready');
       requestAnimationFrame(() => requestAnimationFrame(() => {
         loadingScreen.classList.add('is-hidden');
-        setTimeout(() => { loadingScreen.hidden = true; }, 240);
+        setTimeout(() => { loadingScreen.hidden = true; showWalkthrough(); }, 240);
       }));
     });
   };
