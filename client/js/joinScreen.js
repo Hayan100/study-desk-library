@@ -210,7 +210,7 @@ export function initJoinScreen() {
       },
     });
     window.google.accounts.id.renderButton(document.getElementById('google-signin'), {
-      type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', width: 330,
+      type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 374,
     });
   };
 
