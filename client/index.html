@@ -35,12 +35,20 @@
 <body>
   <div id="join-screen" class="join-screen">
     <section id="auth-step" class="join-card auth-card" hidden>
-      <div class="auth-logo" aria-hidden="true">SD</div>
-      <h1>Sign in to Study Desk</h1>
-      <p>Study together, stay consistent, and stay focused.</p>
+      <img class="auth-brand-logo" src="/assets/branding/mdcatemy-logo.png" alt="MDCATEMY" />
+      <div class="auth-product-name">Study Desk Library</div>
+      <h1>Study better, together</h1>
+      <p>Enter your virtual study library and build a focused routine with friends.</p>
+      <form id="email-auth-form" class="email-auth-form">
+        <label class="field-label" for="auth-email">Email address</label>
+        <input id="auth-email" class="text-input" type="email" autocomplete="email" placeholder="you@example.com" required />
+        <label class="field-label" for="auth-password">Password</label>
+        <input id="auth-password" class="text-input" type="password" autocomplete="current-password" minlength="8" placeholder="At least 8 characters" required />
+        <button class="btn-primary auth-email-button" type="submit">Continue with email</button>
+      </form>
+      <div class="auth-divider"><span>or</span></div>
       <div id="google-signin" class="google-signin" aria-label="Continue with Google"></div>
-      <div class="auth-divider"><span>secure sign in</span></div>
-      <small class="auth-note">Your Google account keeps your profile recognizable across study sessions.</small>
+      <small class="auth-note">Secure sign-in powered by Google. Email sign-in is being connected through Supabase Auth.</small>
       <p id="auth-message" class="auth-message" role="status"></p>
     </section>
     <form id="join-form" class="join-card" hidden>

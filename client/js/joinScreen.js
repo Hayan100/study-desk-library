@@ -11,6 +11,13 @@ export function initJoinScreen() {
   const libraryStep = document.getElementById('library-step');
   const authStep = document.getElementById('auth-step');
   const authMessage = document.getElementById('auth-message');
+  document.getElementById('email-auth-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    // SECURITY: do not collect or transmit passwords until Supabase Auth is configured;
+    // the app never stores credentials in its own profile database.
+    document.getElementById('auth-password').value = '';
+    authMessage.textContent = 'Email sign-in is coming next. Please continue securely with Google for now.';
+  });
   const choices = [...form.querySelectorAll('.avatar-choice')];
   let avatar = 'male';
   let profile = null;

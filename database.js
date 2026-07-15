@@ -1,15 +1,30 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
 
 const connectionString = String(process.env.DATABASE_URL || '').trim();
 const isLocal = /(?:localhost|127\.0\.0\.1)/i.test(connectionString);
+let verifiedConnectionString = connectionString;
+if (connectionString && !isLocal) {
+  const parsed = new URL(connectionString);
+  // pg's sslmode query option can overwrite the verified CA configuration below.
+  parsed.searchParams.delete('sslmode');
+  verifiedConnectionString = parsed.toString();
+}
+// SECURITY: Supabase's pooler uses its own CA. Trust that exact CA while keeping
+// certificate verification enabled instead of disabling TLS validation globally.
+const databaseCa = isLocal ? null : fs.readFileSync(
+  path.join(__dirname, 'certificates', 'supabase-ca.crt'),
+  'utf8',
+);
 const pool = connectionString ? new Pool({
-  connectionString,
+  connectionString: verifiedConnectionString,
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-  ssl: isLocal ? false : { rejectUnauthorized: true },
+  ssl: isLocal ? false : { rejectUnauthorized: true, ca: databaseCa },
 }) : null;
 
 const enabled = Boolean(pool);
