@@ -68,15 +68,6 @@ export class LibraryScene extends Phaser.Scene {
   }
 
   preload() {
-    const loadingProgress = document.getElementById('loading-progress');
-    const loadingProgressbar = document.getElementById('loading-progressbar');
-    const loadingPercent = document.getElementById('loading-percent');
-    this.load.on('progress', (value) => {
-      const percent = Math.round(value * 85);
-      if (loadingProgress) loadingProgress.style.width = `${percent}%`;
-      if (loadingProgressbar) loadingProgressbar.setAttribute('aria-valuenow', String(percent));
-      if (loadingPercent) loadingPercent.textContent = `${percent}%`;
-    });
     this.load.on('loaderror', (file) => console.warn('[assets] expected but missing:', file.src));
     this.load.tilemapTiledJSON('library-map', A.map);
     this.load.tilemapTiledJSON('firstfloor-map', A.firstFloor);

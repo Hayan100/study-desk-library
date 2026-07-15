@@ -75,7 +75,6 @@ html, body {
   height: 100%;
   background: linear-gradient(90deg, #8b3d06, #e58b0b 55%, #ffd45a);
   box-shadow: 0 0 10px #e89b18aa;
-  transition: width 120ms linear;
 }
 
 .game-prompt {

@@ -23,6 +23,7 @@ export function initJoinScreen() {
   let profile = null;
   let account = null;
   let databaseActive = false;
+  let pendingLibrary = null;
   const toggle = document.getElementById('sidebar-toggle');
   const card = document.getElementById('profile-card');
   const launcher = document.getElementById('profile-launcher');
@@ -39,6 +40,12 @@ export function initJoinScreen() {
   const loadingProgressbar = document.getElementById('loading-progressbar');
   const loadingPercent = document.getElementById('loading-percent');
   const loadingStatus = document.getElementById('loading-status');
+  const LOADING_DURATION = 1800;
+  let loadingFrame = 0;
+  let loadingStartedAt = 0;
+  let loadingValue = 0;
+  let loadingReady = false;
+  let loadingMessage = '';
   const walkthrough = document.getElementById('walkthrough');
   const walkthroughSteps = [
     ['\u{1F44B}', 'Welcome to your library', 'Move with WASD or the arrow keys. You can also click an open floor tile.'],
@@ -82,19 +89,38 @@ export function initJoinScreen() {
   });
   const setLoading = (percent, status) => {
     const value = Math.max(0, Math.min(100, Math.round(percent)));
+    loadingValue = value;
     loadingProgress.style.width = `${value}%`;
     loadingProgressbar.setAttribute('aria-valuenow', String(value));
     loadingPercent.textContent = `${value}%`;
     loadingStatus.textContent = status;
   };
+  const animateLoading = (now) => {
+    const maximum = loadingReady ? 100 : 92;
+    const value = Math.min(maximum, ((now - loadingStartedAt) / LOADING_DURATION) * 100);
+    setLoading(value, loadingReady ? 'Finishing library' : loadingMessage);
+    if (loadingReady && value >= 100) {
+      setLoading(100, 'Library ready');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        loadingScreen.classList.add('is-hidden');
+        setTimeout(() => { loadingScreen.hidden = true; showWalkthrough(); }, 240);
+      }));
+      return;
+    }
+    loadingFrame = requestAnimationFrame(animateLoading);
+  };
   const showLoading = (status = 'Entering the library') => {
+    cancelAnimationFrame(loadingFrame);
     loadingScreen.hidden = false;
     loadingScreen.classList.remove('is-hidden');
-    const loaded = document.body.classList.contains('game-ready')
-      ? 85 : Number(loadingProgressbar.getAttribute('aria-valuenow')) || 0;
-    setLoading(loaded, status);
+    loadingReady = false;
+    loadingMessage = status;
+    setLoading(0, status);
+    loadingStartedAt = performance.now();
+    loadingFrame = requestAnimationFrame(animateLoading);
   };
   const cancelLoading = () => {
+    cancelAnimationFrame(loadingFrame);
     loadingScreen.hidden = true;
     loadingScreen.classList.remove('is-hidden');
   };
@@ -106,11 +132,8 @@ export function initJoinScreen() {
       waitForReady('game-ready', 'game-ready'),
       waitForReady('multiplayer-ready', 'multiplayer-ready'),
     ]).then(() => {
-      setLoading(100, 'Library ready');
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        loadingScreen.classList.add('is-hidden');
-        setTimeout(() => { loadingScreen.hidden = true; showWalkthrough(); }, 240);
-      }));
+      if (loadingValue >= 92) loadingStartedAt = performance.now() - ((loadingValue / 100) * LOADING_DURATION);
+      loadingReady = true;
     });
   };
   const refreshInvite = (inviteToken = roomId) => {
@@ -131,7 +154,6 @@ export function initJoinScreen() {
       // Clipboard may be unavailable outside HTTPS, so select the readonly field as a safe manual fallback.
       await navigator.clipboard.writeText(inviteField.value);
       copyButton.textContent = 'Copied';
-      setTimeout(() => { copyButton.textContent = 'Copy'; }, 1600);
     } catch {
       inviteField.focus();
       inviteField.select();
@@ -318,18 +340,30 @@ export function initJoinScreen() {
     avatar = button.dataset.avatar;
     choices.forEach((choice) => choice.classList.toggle('is-active', choice === button));
   }));
+  const chooseProfile = (library = null) => {
+    pendingLibrary = library;
+    document.getElementById('player-name').value = profile?.name || account?.name || '';
+    avatar = ['male', 'girl'].includes(profile?.avatar) ? profile.avatar : 'male';
+    choices.forEach((choice) => choice.classList.toggle('is-active', choice.dataset.avatar === avatar));
+    document.getElementById('profile-message').textContent = '';
+    authStep.hidden = true;
+    libraryStep.hidden = true;
+    form.hidden = false;
+  };
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = document.getElementById('player-name').value.trim() || 'Student';
-    profile = { name, avatar, color: '#86efac', accountId: account?.id || null };
+    profile = { ...profile, name, avatar, color: profile?.color || '#86efac', accountId: account?.id || null };
     if (!databaseActive) {
-      enter(profile);
+      form.hidden = true;
+      enter(profile, pendingLibrary);
       return;
     }
     try {
       profile = { ...profile, ...await network.saveProfile(profile) };
       localStorage.setItem('study-desk-profile', JSON.stringify(profile));
-      await showLibraryStep();
+      form.hidden = true;
+      enter(profile, pendingLibrary);
     } catch (error) {
       document.getElementById('profile-message').textContent = error.message;
     }
@@ -353,7 +387,7 @@ export function initJoinScreen() {
       const open = document.createElement('button'); open.type = 'button'; open.className = 'room-action'; open.textContent = 'Open';
       const invite = document.createElement('button'); invite.type = 'button'; invite.className = 'room-action'; invite.textContent = 'Invite';
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'room-action is-danger'; remove.textContent = 'Delete';
-      open.addEventListener('click', () => enter(profile, library));
+      open.addEventListener('click', () => chooseProfile(library));
       invite.addEventListener('click', () => openInvite(library.inviteToken));
       remove.addEventListener('click', async () => {
         if (!window.confirm(`Delete "${library.name}"? Everyone in this room will be disconnected.`)) return;
@@ -384,16 +418,15 @@ export function initJoinScreen() {
       ? 'Create rooms, invite students, and see who is active.'
       : 'Paste the invite link shared by an admin.';
     document.getElementById('create-library-form').hidden = !isAdmin;
+    document.getElementById('join-library-form').hidden = isAdmin;
     document.getElementById('library-name-input').value ||= `${profile.name}'s Room`;
     if (roomId && !isAdmin) {
-      showLoading('Joining invited room');
       const message = document.getElementById('library-message');
       message.textContent = 'Joining invited room...';
       try {
         const library = await network.joinLibrary(roomId);
-        enter(profile, library);
+        chooseProfile(library);
       } catch (error) {
-        cancelLoading();
         libraryStep.hidden = false;
         message.textContent = error.message;
       }
@@ -423,12 +456,10 @@ export function initJoinScreen() {
     event.preventDefault();
     const message = document.getElementById('library-message');
     message.textContent = 'Joining room...';
-    showLoading('Joining room');
     try {
       const library = await network.joinLibrary(document.getElementById('library-invite-input').value);
-      enter(profile, library);
+      chooseProfile(library);
     } catch (error) {
-      cancelLoading();
       message.textContent = error.message;
     }
   });
@@ -438,17 +469,16 @@ export function initJoinScreen() {
     authStep.hidden = true;
     if (databaseActive && user) {
       const stored = (await network.profileState()).profile;
-      if (stored?.complete) {
-        profile = { ...stored, accountId: user.id };
-        localStorage.setItem('study-desk-profile', JSON.stringify(profile));
-        await showLibraryStep();
-        return;
-      }
       const local = network.savedProfile(user.id);
-      document.getElementById('player-name').value = local?.name || stored?.name || user.name || '';
-      avatar = local?.avatar || stored?.avatar || 'male';
-      choices.forEach((choice) => choice.classList.toggle('is-active', choice.dataset.avatar === avatar));
-      form.hidden = false;
+      profile = {
+        ...(local || {}), ...(stored || {}),
+        name: stored?.name || local?.name || user.name || 'Student',
+        avatar: stored?.avatar || local?.avatar || 'male',
+        color: stored?.color || local?.color || '#86efac',
+        accountId: user.id,
+      };
+      localStorage.setItem('study-desk-profile', JSON.stringify(profile));
+      await showLibraryStep();
       return;
     }
     const saved = network.savedProfile(user?.id || null);
