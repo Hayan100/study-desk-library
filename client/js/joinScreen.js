@@ -310,15 +310,15 @@ export function initJoinScreen() {
         }
       },
     });
-    googleSignIn.disabled = false;
-    googleSignIn.addEventListener('click', () => {
-      authMessage.textContent = '';
-      // SECURITY: Google Identity Services owns account selection and returns the credential for server validation.
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
-          authMessage.textContent = 'Google sign-in could not open. Please try again.';
-        }
-      });
+    // SECURITY: use Google's managed button flow; the returned credential is still validated by the server.
+    window.google.accounts.id.renderButton(googleSignIn, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+      width: 400,
     });
   };
 

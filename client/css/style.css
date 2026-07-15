@@ -412,13 +412,12 @@ html, body { background: var(--md-bg); color: var(--md-text); }
 .avatar-editor-panel footer button:first-child { background: var(--md-surface); color: var(--md-text); border-color: var(--md-border); }
 .avatar-choice.selected, .library-choice.selected, .sound-pill.selected, .mode-tab.active { border-color: var(--md-accent); color: var(--md-accent); }
 .google-signin {
-  display: block; width: 100%; height: 46px; min-height: 46px; padding: 0; overflow: hidden;
-  border: 0; border-radius: 999px; background: transparent; box-shadow: none; cursor: pointer;
+  display: flex; justify-content: center; width: 100%; min-height: 44px;
+  overflow: visible; border-radius: 999px; background: transparent; box-shadow: none;
 }
-.google-signin img { display: block; width: 100%; height: 100%; object-fit: fill; }
 .google-signin:focus-visible { outline: 3px solid var(--md-accent); outline-offset: 3px; }
-.google-signin:disabled { cursor: wait; opacity: .6; }
-.google-signin > div, .google-signin iframe { display: none !important; }
+.google-signin > div { display: flex !important; justify-content: center; width: 100% !important; }
+.google-signin iframe { display: block !important; }
 .utility-rail { background: var(--md-surface); border-color: var(--md-border); }
 .rail-logo { background: var(--md-card); border-color: var(--md-border); color: var(--md-accent); }
 .rail-button { color: var(--md-muted); }
