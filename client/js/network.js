@@ -116,6 +116,9 @@ export const network = {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
     })).library;
   },
+  async deleteLibrary(libraryId) {
+    await api(`/api/libraries/${encodeURIComponent(libraryId)}`, { method: 'DELETE' });
+  },
   async joinLibrary(value) {
     let inviteToken = String(value || '').trim();
     try {

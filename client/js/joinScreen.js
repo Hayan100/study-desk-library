@@ -33,13 +33,18 @@ export function initJoinScreen() {
   const inviteModal = document.getElementById('invite-modal');
   const copyButton = document.getElementById('invite-copy');
   const inviteField = document.getElementById('invite-link');
-  const refreshInvite = () => {
-    inviteField.value = roomId ? new URL(`/room/${encodeURIComponent(roomId)}`, location.origin).href : '';
+  const inviteButton = document.getElementById('invite-open');
+  const refreshInvite = (inviteToken = roomId) => {
+    inviteField.value = inviteToken ? new URL(`/room/${encodeURIComponent(inviteToken)}`, location.origin).href : '';
   };
-  document.getElementById('invite-open').addEventListener('click', () => {
-    refreshInvite();
+  const openInvite = (inviteToken = roomId) => {
+    refreshInvite(inviteToken);
     copyButton.textContent = 'Copy';
     inviteModal.hidden = false;
+  };
+  inviteButton.addEventListener('click', () => {
+    if (databaseActive && !account?.isAdmin) return;
+    openInvite();
   });
   document.getElementById('invite-close').addEventListener('click', () => { inviteModal.hidden = true; });
   copyButton.addEventListener('click', async () => {
@@ -79,6 +84,7 @@ export function initJoinScreen() {
     network.join(nextProfile, library?.inviteToken || roomId);
     document.getElementById('library-name').textContent = library?.name || 'STUDY DESK';
     refreshInvite();
+    inviteButton.hidden = databaseActive && !(account?.isAdmin && library?.role === 'admin');
     screen.hidden = true;
     document.getElementById('people-panel').hidden = false;
     document.body.classList.add('has-people-panel');
@@ -242,29 +248,57 @@ export function initJoinScreen() {
   const renderLibraries = (libraries) => {
     const wrap = document.getElementById('saved-libraries');
     const list = document.getElementById('saved-library-list');
-    wrap.hidden = libraries.length === 0;
-    list.replaceChildren(...libraries.map((library) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'saved-library-button';
+    const owned = account?.isAdmin ? libraries : [];
+    wrap.hidden = owned.length === 0;
+    list.replaceChildren(...owned.map((library) => {
+      const card = document.createElement('article'); card.className = 'saved-library-card';
+      const summary = document.createElement('div'); summary.className = 'saved-library-summary';
       const name = document.createElement('strong'); name.textContent = library.name;
-      const role = document.createElement('small'); role.textContent = library.role;
-      button.append(name, role);
-      button.addEventListener('click', () => enter(profile, library));
-      return button;
+      const active = document.createElement('small');
+      const activeCount = Math.max(0, Number(library.activeCount) || 0);
+      active.textContent = `${activeCount} active`;
+      summary.append(name, active);
+
+      const actions = document.createElement('div'); actions.className = 'saved-library-actions';
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'room-action'; open.textContent = 'Open';
+      const invite = document.createElement('button'); invite.type = 'button'; invite.className = 'room-action'; invite.textContent = 'Invite';
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'room-action is-danger'; remove.textContent = 'Delete';
+      open.addEventListener('click', () => enter(profile, library));
+      invite.addEventListener('click', () => openInvite(library.inviteToken));
+      remove.addEventListener('click', async () => {
+        if (!window.confirm(`Delete "${library.name}"? Everyone in this room will be disconnected.`)) return;
+        remove.disabled = true;
+        const message = document.getElementById('library-message');
+        try {
+          await network.deleteLibrary(library.id);
+          renderLibraries(await network.libraries());
+          message.textContent = 'Room deleted.';
+        } catch (error) {
+          remove.disabled = false;
+          message.textContent = error.message;
+        }
+      });
+      actions.append(open, invite, remove);
+      card.append(summary, actions);
+      return card;
     }));
   };
 
   const showLibraryStep = async () => {
+    const isAdmin = account?.isAdmin === true;
     form.hidden = true;
     authStep.hidden = true;
     libraryStep.hidden = false;
-    document.getElementById('library-name-input').value ||= `${profile.name}'s Library`;
-    const libraries = await network.libraries();
-    renderLibraries(libraries);
+    document.getElementById('library-step-title').textContent = isAdmin ? 'Manage study rooms' : 'Join a study room';
+    document.getElementById('library-step-copy').textContent = isAdmin
+      ? 'Create rooms, invite students, and see who is active.'
+      : 'Paste the invite link shared by an admin.';
+    document.getElementById('create-library-form').hidden = !isAdmin;
+    document.getElementById('library-name-input').value ||= `${profile.name}'s Room`;
+    renderLibraries(isAdmin ? await network.libraries() : []);
     if (roomId) {
       const message = document.getElementById('library-message');
-      message.textContent = 'Joining invited library...';
+      message.textContent = 'Joining invited room...';
       try {
         const library = await network.joinLibrary(roomId);
         enter(profile, library);
@@ -276,11 +310,15 @@ export function initJoinScreen() {
 
   document.getElementById('create-library-form').addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (!account?.isAdmin) return;
     const message = document.getElementById('library-message');
-    message.textContent = 'Creating library...';
+    const input = document.getElementById('library-name-input');
+    message.textContent = 'Creating room...';
     try {
-      const library = await network.createLibrary(document.getElementById('library-name-input').value);
-      enter(profile, library);
+      await network.createLibrary(input.value);
+      renderLibraries(await network.libraries());
+      input.value = '';
+      message.textContent = 'Room created. Open it or copy its invite link below.';
     } catch (error) {
       message.textContent = error.message;
     }
@@ -289,7 +327,7 @@ export function initJoinScreen() {
   document.getElementById('join-library-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const message = document.getElementById('library-message');
-    message.textContent = 'Joining library...';
+    message.textContent = 'Joining room...';
     try {
       const library = await network.joinLibrary(document.getElementById('library-invite-input').value);
       enter(profile, library);

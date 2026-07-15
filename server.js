@@ -17,6 +17,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const AUTH_REQUIRED = process.env.AUTH_REQUIRED === 'true';
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || 'mhayankhan100@gmail.com').trim().toLowerCase();
 const SESSION_SECRET = String(process.env.SESSION_SECRET || '');
 const AUTH_ENABLED = Boolean(GOOGLE_CLIENT_ID && SESSION_SECRET.length >= 32);
 const DATABASE_REQUIRED = process.env.DATABASE_REQUIRED === 'true';
@@ -115,6 +116,7 @@ const chatBubbles = new Map();
 const playerBubble = new Map();
 const blockedTiles = new Set();
 const validRoomId = (value) => /^[a-z0-9-]{6,48}$/.test(value) ? value : null;
+const isAdminEmail = (value) => String(value || '').trim().toLowerCase() === ADMIN_EMAIL;
 const publicUserId = (subject) => crypto.createHmac('sha256', SESSION_SECRET).update(subject).digest('hex').slice(0, 24);
 const chairKey = (roomId, chairId) => `${roomId}:${chairId}`;
 const CHAT_DISTANCE = 4;
@@ -297,6 +299,11 @@ function requireAccount(req, res, next) {
   return next();
 }
 
+function requireAdmin(req, res, next) {
+  if (req.session?.user?.isAdmin !== true) return res.status(403).json({ error: 'Admin access required' });
+  return next();
+}
+
 function requireDatabase(_req, res, next) {
   if (!database.enabled) return res.status(503).json({ error: 'Persistent libraries are not configured' });
   return next();
@@ -391,9 +398,16 @@ app.get('/api/auth/me', asyncRoute(async (req, res) => {
   let sessionUser = AUTH_ENABLED ? req.session?.user : null;
   // A session issued before Supabase was enabled has no durable user row. Require
   // one fresh Google sign-in instead of creating a half-owned profile or library.
-  if (sessionUser && database.enabled && !await database.getProfile(sessionUser.sub)) {
-    req.session = null;
-    sessionUser = null;
+  if (sessionUser && database.enabled) {
+    const accountProfile = await database.getProfile(sessionUser.sub);
+    if (!accountProfile) {
+      req.session = null;
+      sessionUser = null;
+    } else {
+      // Refresh older signed sessions from the verified email stored server-side.
+      sessionUser = { ...sessionUser, isAdmin: isAdminEmail(accountProfile.email) };
+      req.session.user = sessionUser;
+    }
   }
   res.json({
     enabled: AUTH_ENABLED,
@@ -402,6 +416,7 @@ app.get('/api/auth/me', asyncRoute(async (req, res) => {
     user: sessionUser ? {
       id: publicUserId(sessionUser.sub),
       name: sessionUser.name,
+      isAdmin: sessionUser.isAdmin === true,
     } : null,
   });
 }));
@@ -441,10 +456,11 @@ app.post('/api/auth/google', async (req, res) => {
       return res.status(503).json({ error: 'Account storage is temporarily unavailable' });
     }
   }
-  // SECURITY: the raw Google access token and email never enter the
-  // signed browser session. The database is the only durable owner of the email.
-  req.session.user = { sub: payload.sub, name };
-  return res.json({ user: { id: publicUserId(payload.sub), name } });
+  // SECURITY: the raw Google access token and email never enter the signed browser
+  // session. Only this authorization decision from Google's verified email is retained.
+  const isAdmin = isAdminEmail(payload.email);
+  req.session.user = { sub: payload.sub, name, isAdmin };
+  return res.json({ user: { id: publicUserId(payload.sub), name, isAdmin } });
 });
 app.post('/api/auth/logout', (req, res) => {
   req.session = null;
@@ -472,14 +488,29 @@ app.put('/api/profile', requireAccount, requireDatabase,
   }));
 
 app.get('/api/libraries', requireAccount, requireDatabase, requireCompleteProfile, asyncRoute(async (req, res) => {
-  res.json({ libraries: await database.listLibraries(req.session.user.sub) });
+  if (!req.session.user.isAdmin) return res.json({ libraries: [] });
+  const libraries = await database.listLibraries(req.session.user.sub);
+  return res.json({
+    libraries: libraries.map((library) => ({
+      ...library,
+      activeCount: roomPlayers(library.inviteToken).length,
+    })),
+  });
 }));
 
-app.post('/api/libraries', requireAccount, requireDatabase,
+app.post('/api/libraries', requireAccount, requireAdmin, requireDatabase,
   limitAction('create-library', 5, 60 * 60 * 1000), requireCompleteProfile, asyncRoute(async (req, res) => {
     const name = safeText(req.body?.name, `${req.session.user.name}'s Library`, 80);
     const library = await database.createLibrary(req.session.user.sub, name);
     res.status(201).json({ library });
+  }));
+
+app.delete('/api/libraries/:libraryId', requireAccount, requireAdmin, requireDatabase,
+  limitAction('delete-library', 10, 60 * 60 * 1000), requireCompleteProfile, asyncRoute(async (req, res) => {
+    const inviteToken = await database.deleteLibrary(req.session.user.sub, String(req.params.libraryId));
+    if (!inviteToken) return res.status(404).json({ error: 'Room not found' });
+    io.in(inviteToken).disconnectSockets(true);
+    return res.status(204).end();
   }));
 
 app.post('/api/libraries/join', requireAccount, requireDatabase,

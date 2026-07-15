@@ -84,23 +84,23 @@
     </form>
     <section id="library-step" class="join-card library-card" hidden>
       <div class="join-mark" aria-hidden="true">&#128218;</div>
-      <h1>Choose your study library</h1>
-      <p>Create a space for your group, or join one with an invite link.</p>
+      <h1 id="library-step-title">Choose your study library</h1>
+      <p id="library-step-copy">Join with an invite link.</p>
       <div id="saved-libraries" class="saved-libraries" hidden>
-        <span class="field-label">Your libraries</span>
+        <span class="field-label">Your rooms</span>
         <div id="saved-library-list" class="saved-library-list"></div>
       </div>
-      <form id="create-library-form" class="library-option">
-        <strong>Create your own library</strong>
+      <form id="create-library-form" class="library-option" hidden>
+        <strong>Create a room</strong>
         <span>You will be its admin and can invite study partners.</span>
-        <input id="library-name-input" class="text-input" maxlength="80" placeholder="Library name" required />
-        <button class="btn-primary" type="submit">Create library</button>
+        <input id="library-name-input" class="text-input" maxlength="80" placeholder="Room name" required />
+        <button class="btn-primary" type="submit">Create room</button>
       </form>
       <form id="join-library-form" class="library-option">
-        <strong>Join a library</strong>
+        <strong>Join a room</strong>
         <span>Paste the invite link an admin shared with you.</span>
         <input id="library-invite-input" class="text-input" maxlength="240" placeholder="https://.../room/..." required />
-        <button class="btn-secondary" type="submit">Join with invite</button>
+        <button class="btn-secondary" type="submit">Join room</button>
       </form>
       <p id="library-message" class="auth-message" role="status"></p>
     </section>

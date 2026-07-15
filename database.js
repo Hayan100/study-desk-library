@@ -60,7 +60,7 @@ async function ensureUser({ subject, email, name }) {
 
 async function getProfile(subject) {
   const result = await requirePool().query(`
-    select id, name, avatar, color, photo, profile_complete
+    select id, email, name, avatar, color, photo, profile_complete
     from public.study_desk_users where google_subject = $1
   `, [subject]);
   return result.rows[0] || null;
@@ -79,14 +79,24 @@ async function updateProfile(subject, profile) {
 
 async function listLibraries(subject) {
   const result = await requirePool().query(`
-    select l.id, l.name, l.invite_token, l.created_at, m.role
+    select l.id, l.name, l.invite_token, l.created_at, 'admin' as role
     from public.study_libraries l
-    join public.study_library_memberships m on m.library_id = l.id
-    join public.study_desk_users u on u.id = m.user_id
+    join public.study_desk_users u on u.id = l.owner_user_id
     where u.google_subject = $1
     order by l.created_at asc
   `, [subject]);
   return result.rows.map(libraryView);
+}
+
+async function deleteLibrary(subject, libraryId) {
+  if (!UUID.test(libraryId)) return null;
+  const result = await requirePool().query(`
+    delete from public.study_libraries l
+    using public.study_desk_users u
+    where l.id = $1::uuid and l.owner_user_id = u.id and u.google_subject = $2
+    returning l.invite_token
+  `, [libraryId, subject]);
+  return result.rows[0]?.invite_token || null;
 }
 
 async function createLibrary(subject, name) {
@@ -273,6 +283,7 @@ module.exports = {
   updateProfile,
   listLibraries,
   createLibrary,
+  deleteLibrary,
   joinLibrary,
   membershipByInvite,
   startStudySession,

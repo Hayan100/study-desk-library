@@ -21,6 +21,8 @@ http://localhost:3000
 
 Without a database, opening `/` creates a temporary private room URL. With Supabase
 configured, authenticated users create or join persistent libraries instead.
+Room creation, invites, live room counts, and deletion are restricted to the
+verified `ADMIN_EMAIL`; other accounts can only join with an invite link.
 
 (Set a different port with `PORT=4000 npm start`.)
 

@@ -331,8 +331,14 @@ body.has-people-panel.sidebar-collapsed #game-container { margin-left: 58px; wid
 .btn-secondary:hover { background: #eef2ff; }
 .saved-libraries { margin-top: 18px; }
 .saved-library-list { display: grid; gap: 8px; margin-top: 8px; }
-.saved-library-button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 11px 12px; border: 1px solid #dbeafe; border-radius: 10px; background: #eff6ff; color: #1e3a8a; cursor: pointer; }
-.saved-library-button small { text-transform: capitalize; color: #6366f1; }
+.saved-library-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #dbeafe; border-radius: 12px; background: #eff6ff; }
+.saved-library-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #1e3a8a; }
+.saved-library-summary small { color: #15803d; font-weight: 700; }
+.saved-library-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.room-action { padding: 8px; border: 1px solid #c7d2fe; border-radius: 8px; background: #fff; color: #4338ca; font-weight: 700; cursor: pointer; }
+.room-action:hover { background: #eef2ff; }
+.room-action.is-danger { border-color: #fecaca; color: #b91c1c; }
+.room-action.is-danger:hover { background: #fef2f2; }
 .people-panel { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 336px; display: flex; background: #fff; }
 .sidebar-collapsed .people-panel { width: 58px; }
 .sidebar-collapsed .people-sidebar { display: none; }
