@@ -344,7 +344,7 @@ export function initJoinScreen() {
       : 'Paste the invite link shared by an admin.';
     document.getElementById('create-library-form').hidden = !isAdmin;
     document.getElementById('library-name-input').value ||= `${profile.name}'s Room`;
-    if (roomId) {
+    if (roomId && !isAdmin) {
       showLoading('Joining invited room');
       const message = document.getElementById('library-message');
       message.textContent = 'Joining invited room...';
