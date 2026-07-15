@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const database = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,8 +19,15 @@ const AUTH_REQUIRED = process.env.AUTH_REQUIRED === 'true';
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
 const SESSION_SECRET = String(process.env.SESSION_SECRET || '');
 const AUTH_ENABLED = Boolean(GOOGLE_CLIENT_ID && SESSION_SECRET.length >= 32);
+const DATABASE_REQUIRED = process.env.DATABASE_REQUIRED === 'true';
 if (AUTH_REQUIRED && !AUTH_ENABLED) {
   throw new Error('AUTH_REQUIRED needs GOOGLE_CLIENT_ID and a SESSION_SECRET of at least 32 characters');
+}
+if (DATABASE_REQUIRED && !database.enabled) {
+  throw new Error('DATABASE_REQUIRED needs a Supabase DATABASE_URL');
+}
+if (database.enabled && !AUTH_ENABLED) {
+  throw new Error('DATABASE_URL requires Google authentication so stored data always has a verified owner');
 }
 const WORLD_COLS = 44;
 const WORLD_ROWS = 44;
@@ -52,6 +60,7 @@ function isAllowedOrigin(request) {
 
 const connectionAttempts = new Map();
 const authAttempts = new Map();
+const actionAttempts = new Map();
 const requestIp = (request) => request.headers['fly-client-ip'] || request.socket.remoteAddress || 'unknown';
 function allowConnection(request, done) {
   if (!isAllowedOrigin(request)) return done('origin not allowed', false);
@@ -72,6 +81,19 @@ function allowAuth(request) {
   recent.push(now);
   authAttempts.set(ip, recent);
   return true;
+}
+
+function limitAction(action, limit, windowMs) {
+  return (req, res, next) => {
+    const actor = req.session?.user?.sub || requestIp(req);
+    const key = `${action}:${actor}`;
+    const now = Date.now();
+    const recent = (actionAttempts.get(key) || []).filter((time) => now - time < windowMs);
+    if (recent.length >= limit) return res.status(429).json({ error: 'Too many requests; try again shortly' });
+    recent.push(now);
+    actionAttempts.set(key, recent);
+    return next();
+  };
 }
 
 const io = new Server(server, {
@@ -206,6 +228,38 @@ function safePhoto(value, fallback = null) {
   return /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i.test(value) ? value : fallback;
 }
 
+function publicProfile(row) {
+  if (!row) return null;
+  return {
+    name: row.name,
+    avatar: row.avatar,
+    color: row.color,
+    photo: row.photo,
+    complete: Boolean(row.profile_complete),
+  };
+}
+
+function asyncRoute(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+function requireAccount(req, res, next) {
+  if (!AUTH_ENABLED || !req.session?.user?.sub) return res.status(401).json({ error: 'Sign in required' });
+  return next();
+}
+
+function requireDatabase(_req, res, next) {
+  if (!database.enabled) return res.status(503).json({ error: 'Persistent libraries are not configured' });
+  return next();
+}
+
+const requireCompleteProfile = asyncRoute(async (req, res, next) => {
+  const profile = await database.getProfile(req.session.user.sub);
+  if (!profile?.profile_complete) return res.status(403).json({ error: 'Complete your profile first' });
+  req.accountProfile = profile;
+  return next();
+});
+
 function safeTile(value) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number < WORLD_COLS ? number : null;
@@ -233,6 +287,12 @@ setInterval(() => {
     const recent = times.filter((time) => time >= cutoff);
     if (recent.length) authAttempts.set(ip, recent);
     else authAttempts.delete(ip);
+  }
+  const actionCutoff = Date.now() - 60 * 60 * 1000;
+  for (const [key, times] of actionAttempts) {
+    const recent = times.filter((time) => time >= actionCutoff);
+    if (recent.length) actionAttempts.set(key, recent);
+    else actionAttempts.delete(key);
   }
 }, 60000).unref();
 
@@ -266,6 +326,9 @@ app.use(helmet({
 }));
 app.use(sessionMiddleware);
 app.use('/api/auth', express.json({ limit: '8kb', strict: true }));
+app.use('/api/libraries', express.json({ limit: '8kb', strict: true }));
+app.use('/api/study-sessions', express.json({ limit: '8kb', strict: true }));
+app.use('/api/profile', express.json({ limit: '220kb', strict: true }));
 
 app.use((req, res, next) => {
   // SECURITY: Fly terminates TLS; reject accidental plaintext production requests without breaking health checks.
@@ -274,41 +337,121 @@ app.use((req, res, next) => {
   return next();
 });
 
-app.get('/health', (_req, res) => res.status(200).json({ ok: true }));
-app.get('/api/auth/me', (req, res) => {
-  const sessionUser = AUTH_ENABLED ? req.session?.user : null;
+app.get('/health', (_req, res) => res.status(200).json({ ok: true, database: database.enabled }));
+app.get('/api/auth/me', asyncRoute(async (req, res) => {
+  let sessionUser = AUTH_ENABLED ? req.session?.user : null;
+  // A session issued before Supabase was enabled has no durable user row. Require
+  // one fresh Google sign-in instead of creating a half-owned profile or library.
+  if (sessionUser && database.enabled && !await database.getProfile(sessionUser.sub)) {
+    req.session = null;
+    sessionUser = null;
+  }
   res.json({
     enabled: AUTH_ENABLED,
+    databaseEnabled: database.enabled,
     clientId: AUTH_ENABLED ? GOOGLE_CLIENT_ID : null,
     user: sessionUser ? {
       id: publicUserId(sessionUser.sub),
       name: sessionUser.name,
     } : null,
   });
-});
+}));
 app.post('/api/auth/google', async (req, res) => {
   if (!AUTH_ENABLED) return res.status(404).json({ error: 'Authentication is not configured' });
   if (!allowAuth(req)) return res.status(429).json({ error: 'Too many sign-in attempts' });
   const credential = typeof req.body?.credential === 'string' && req.body.credential.length <= 10000
     ? req.body.credential : '';
   if (!credential) return res.status(400).json({ error: 'Google credential is required' });
+  let payload;
   try {
     const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
-    const payload = ticket.getPayload();
-    if (!payload?.sub || payload.email_verified !== true) throw new Error('unverified Google account');
-    // SECURITY: store only Google's stable subject and a bounded display name. The raw
-    // Google credential, email, and access tokens never enter the session or client state.
-    req.session.user = { sub: payload.sub, name: safeText(payload.name, 'Student', 64) };
-    const id = publicUserId(payload.sub);
-    return res.json({ user: { id, name: req.session.user.name } });
+    payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email || payload.email_verified !== true) throw new Error('unverified Google account');
   } catch {
     return res.status(401).json({ error: 'Google sign-in could not be verified' });
   }
+  const name = safeText(payload.name, 'Student', 64);
+  if (database.enabled) {
+    try {
+      await database.ensureUser({ subject: payload.sub, email: payload.email, name });
+    } catch {
+      console.error('[database] Google account could not be saved');
+      return res.status(503).json({ error: 'Account storage is temporarily unavailable' });
+    }
+  }
+  // SECURITY: the raw Google credential, email, and access tokens never enter the
+  // signed browser session. The database is the only durable owner of the email.
+  req.session.user = { sub: payload.sub, name };
+  return res.json({ user: { id: publicUserId(payload.sub), name } });
 });
 app.post('/api/auth/logout', (req, res) => {
   req.session = null;
   res.status(204).end();
 });
+
+app.get('/api/profile', requireAccount, requireDatabase, asyncRoute(async (req, res) => {
+  const profile = await database.getProfile(req.session.user.sub);
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  return res.json({ profile: publicProfile(profile) });
+}));
+
+app.put('/api/profile', requireAccount, requireDatabase,
+  limitAction('update-profile', 20, 60 * 1000), asyncRoute(async (req, res) => {
+    const profile = {
+      name: safeText(req.body?.name, 'Student', 64),
+      avatar: req.body?.avatar === 'girl' ? 'girl' : 'male',
+      color: /^#[0-9a-f]{6}$/i.test(req.body?.color) ? req.body.color : '#86efac',
+      photo: safePhoto(req.body?.photo),
+    };
+    const saved = await database.updateProfile(req.session.user.sub, profile);
+    if (!saved) return res.status(404).json({ error: 'Profile not found' });
+    req.session.user.name = saved.name;
+    return res.json({ profile: publicProfile(saved) });
+  }));
+
+app.get('/api/libraries', requireAccount, requireDatabase, requireCompleteProfile, asyncRoute(async (req, res) => {
+  res.json({ libraries: await database.listLibraries(req.session.user.sub) });
+}));
+
+app.post('/api/libraries', requireAccount, requireDatabase,
+  limitAction('create-library', 5, 60 * 60 * 1000), requireCompleteProfile, asyncRoute(async (req, res) => {
+    const name = safeText(req.body?.name, `${req.session.user.name}'s Library`, 80);
+    const library = await database.createLibrary(req.session.user.sub, name);
+    res.status(201).json({ library });
+  }));
+
+app.post('/api/libraries/join', requireAccount, requireDatabase,
+  limitAction('join-library', 30, 60 * 1000), requireCompleteProfile, asyncRoute(async (req, res) => {
+    const inviteToken = validRoomId(String(req.body?.inviteToken || '').toLowerCase());
+    if (!inviteToken) return res.status(400).json({ error: 'Enter a valid invite link' });
+    const library = await database.joinLibrary(req.session.user.sub, inviteToken);
+    if (!library) return res.status(404).json({ error: 'This invite link is invalid or expired' });
+    return res.json({ library });
+  }));
+
+app.post('/api/study-sessions', requireAccount, requireDatabase,
+  limitAction('study-session', 30, 60 * 1000), requireCompleteProfile, asyncRoute(async (req, res) => {
+    const inviteToken = validRoomId(String(req.body?.roomId || '').toLowerCase());
+    const mode = req.body?.mode === 'pomodoro' ? 'pomodoro' : 'focus';
+    const topic = safeText(req.body?.topic, '', 120);
+    if (!inviteToken) return res.status(400).json({ error: 'Library is required' });
+    const studySession = await database.startStudySession(req.session.user.sub, inviteToken, mode, topic);
+    if (!studySession) return res.status(403).json({ error: 'Library membership required' });
+    return res.status(201).json({ studySession });
+  }));
+
+app.post('/api/study-sessions/:sessionId/finish', requireAccount, requireDatabase,
+  limitAction('finish-study-session', 60, 60 * 1000), requireCompleteProfile, asyncRoute(async (req, res) => {
+    const focusSeconds = Math.min(86400, Math.max(0, Math.round(Number(req.body?.focusSeconds) || 0)));
+    const studySession = await database.finishStudySession(
+      req.session.user.sub,
+      String(req.params.sessionId),
+      req.body?.completed === true,
+      focusSeconds,
+    );
+    if (!studySession) return res.status(404).json({ error: 'Active study session not found' });
+    return res.json({ studySession });
+  }));
 app.use(express.static(path.join(__dirname, 'client'), { dotfiles: 'deny', index: 'index.html' }));
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { dotfiles: 'deny', fallthrough: false }));
 app.get('/room/:roomId', (req, res, next) => {
@@ -318,10 +461,29 @@ app.get('/room/:roomId', (req, res, next) => {
 });
 
 io.on('connection', (socket) => {
-  socket.on('player:join', (input = {}) => {
-    if (!allowEvent(socket, 'join', 5, 60000) || players.has(socket.id) || !input || typeof input !== 'object') return;
+  socket.on('player:join', async (input = {}) => {
+    if (!allowEvent(socket, 'join', 5, 60000) || players.has(socket.id) || socket.data.joining
+      || !input || typeof input !== 'object') return;
     const roomId = validRoomId(String(input.roomId || '').toLowerCase());
     if (!roomId) return socket.disconnect(true);
+    socket.data.joining = true;
+    let storedProfile = null;
+    if (database.enabled) {
+      try {
+        const subject = socket.request.session?.user?.sub;
+        const [membership, accountProfile] = subject ? await Promise.all([
+          database.membershipByInvite(subject, roomId),
+          database.getProfile(subject),
+        ]) : [];
+        if (!membership || !accountProfile?.profile_complete) return socket.disconnect(true);
+        storedProfile = publicProfile(accountProfile);
+      } catch {
+        console.error('[database] Socket membership check failed');
+        return socket.disconnect(true);
+      } finally {
+        socket.data.joining = false;
+      }
+    }
     socket.join(roomId);
     const spawn = findSpawn(roomId);
     if (!spawn) return socket.disconnect(true);
@@ -332,10 +494,10 @@ io.on('connection', (socket) => {
         ? publicUserId(socket.request.session.user.sub)
         : socket.id,
       roomId,
-      name: safeText(input.name, 'Student', 24),
-      avatar: input.avatar === 'girl' ? 'girl' : 'male',
-      color: /^#[0-9a-f]{6}$/i.test(input.color) ? input.color : '#86efac',
-      photo: safePhoto(input.photo),
+      name: safeText(storedProfile?.name || input.name, 'Student', 24),
+      avatar: (storedProfile?.avatar || input.avatar) === 'girl' ? 'girl' : 'male',
+      color: storedProfile?.color || (/^#[0-9a-f]{6}$/i.test(input.color) ? input.color : '#86efac'),
+      photo: storedProfile?.photo || safePhoto(input.photo),
       c, r, facing: 'down', moving: false, sitting: false, chairId: null,
       status: 'Active', topic: '', remainingSec: null,
     };
@@ -527,7 +689,10 @@ server.listen(PORT, () => console.log(`Study Library listening on port ${PORT}`)
 
 function shutdown(signal) {
   console.log(`[server] ${signal}; shutting down`);
-  io.close(() => server.close(() => process.exit(0)));
+  io.close(() => server.close(async () => {
+    await database.close().catch(() => undefined);
+    process.exit(0);
+  }));
   setTimeout(() => process.exit(1), 10000).unref();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));

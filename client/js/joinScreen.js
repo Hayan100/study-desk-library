@@ -8,23 +8,26 @@ const AVATARS = [
 export function initJoinScreen() {
   const screen = document.getElementById('join-screen');
   const form = document.getElementById('join-form');
+  const libraryStep = document.getElementById('library-step');
   const authStep = document.getElementById('auth-step');
   const authMessage = document.getElementById('auth-message');
   const choices = [...form.querySelectorAll('.avatar-choice')];
   let avatar = 'male';
   let profile = null;
   let account = null;
+  let databaseActive = false;
   const toggle = document.getElementById('sidebar-toggle');
   const card = document.getElementById('profile-card');
   const editor = document.getElementById('profile-modal');
   const avatarEditor = document.getElementById('avatar-modal');
   const inviteModal = document.getElementById('invite-modal');
-  // SECURITY: build the share URL from the browser's canonical origin and an encoded room capability.
-  // This keeps Fly deployments shareable while avoiding malformed paths from string concatenation.
-  const inviteUrl = new URL(`/room/${encodeURIComponent(roomId)}`, location.origin).href;
   const copyButton = document.getElementById('invite-copy');
-  document.getElementById('invite-link').value = inviteUrl;
+  const inviteField = document.getElementById('invite-link');
+  const refreshInvite = () => {
+    inviteField.value = roomId ? new URL(`/room/${encodeURIComponent(roomId)}`, location.origin).href : '';
+  };
   document.getElementById('invite-open').addEventListener('click', () => {
+    refreshInvite();
     copyButton.textContent = 'Copy';
     inviteModal.hidden = false;
   });
@@ -32,13 +35,12 @@ export function initJoinScreen() {
   copyButton.addEventListener('click', async () => {
     try {
       // Clipboard may be unavailable outside HTTPS, so select the readonly field as a safe manual fallback.
-      await navigator.clipboard.writeText(inviteUrl);
+      await navigator.clipboard.writeText(inviteField.value);
       copyButton.textContent = 'Copied';
       setTimeout(() => { copyButton.textContent = 'Copy'; }, 1600);
     } catch {
-      const field = document.getElementById('invite-link');
-      field.focus();
-      field.select();
+      inviteField.focus();
+      inviteField.select();
       copyButton.textContent = 'Select & copy';
     }
   });
@@ -58,10 +60,12 @@ export function initJoinScreen() {
       choice.classList.toggle('is-active', choice.dataset.avatar === profile.avatar));
   };
 
-  const enter = (nextProfile) => {
+  const enter = (nextProfile, library = null) => {
     nextProfile.color ||= '#86efac';
     profile = nextProfile;
-    network.join(nextProfile);
+    network.join(nextProfile, library?.inviteToken || roomId);
+    document.getElementById('library-name').textContent = library?.name || 'STUDY DESK';
+    refreshInvite();
     screen.hidden = true;
     document.getElementById('people-panel').hidden = false;
     document.body.classList.add('has-people-panel');
@@ -137,10 +141,14 @@ export function initJoinScreen() {
     image.onerror = () => { URL.revokeObjectURL(image.src); photoInput.value = ''; };
     image.src = URL.createObjectURL(file);
   });
-  document.getElementById('profile-form').addEventListener('submit', (event) => {
+  document.getElementById('profile-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     profile.name = document.getElementById('profile-name').value.trim() || 'Student';
-    network.updateProfile(profile);
+    try {
+      profile = await network.updateProfile(profile);
+    } catch {
+      return;
+    }
     refreshProfile();
     editor.hidden = true;
     document.body.classList.remove('profile-open');
@@ -150,16 +158,100 @@ export function initJoinScreen() {
     avatar = button.dataset.avatar;
     choices.forEach((choice) => choice.classList.toggle('is-active', choice === button));
   }));
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = document.getElementById('player-name').value.trim() || 'Student';
     profile = { name, avatar, color: '#86efac', accountId: account?.id || null };
-    enter(profile);
+    if (!databaseActive) {
+      enter(profile);
+      return;
+    }
+    try {
+      profile = { ...profile, ...await network.saveProfile(profile) };
+      localStorage.setItem('study-desk-profile', JSON.stringify(profile));
+      await showLibraryStep();
+    } catch (error) {
+      document.getElementById('profile-message').textContent = error.message;
+    }
   });
 
-  const showProfileStep = (user = null) => {
+  const renderLibraries = (libraries) => {
+    const wrap = document.getElementById('saved-libraries');
+    const list = document.getElementById('saved-library-list');
+    wrap.hidden = libraries.length === 0;
+    list.replaceChildren(...libraries.map((library) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'saved-library-button';
+      const name = document.createElement('strong'); name.textContent = library.name;
+      const role = document.createElement('small'); role.textContent = library.role;
+      button.append(name, role);
+      button.addEventListener('click', () => enter(profile, library));
+      return button;
+    }));
+  };
+
+  const showLibraryStep = async () => {
+    form.hidden = true;
+    authStep.hidden = true;
+    libraryStep.hidden = false;
+    document.getElementById('library-name-input').value ||= `${profile.name}'s Library`;
+    const libraries = await network.libraries();
+    renderLibraries(libraries);
+    if (roomId) {
+      const message = document.getElementById('library-message');
+      message.textContent = 'Joining invited library...';
+      try {
+        const library = await network.joinLibrary(roomId);
+        enter(profile, library);
+      } catch (error) {
+        message.textContent = error.message;
+      }
+    }
+  };
+
+  document.getElementById('create-library-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const message = document.getElementById('library-message');
+    message.textContent = 'Creating library...';
+    try {
+      const library = await network.createLibrary(document.getElementById('library-name-input').value);
+      enter(profile, library);
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
+
+  document.getElementById('join-library-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const message = document.getElementById('library-message');
+    message.textContent = 'Joining library...';
+    try {
+      const library = await network.joinLibrary(document.getElementById('library-invite-input').value);
+      enter(profile, library);
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
+
+  const showProfileStep = async (user = null) => {
     account = user;
     authStep.hidden = true;
+    if (databaseActive && user) {
+      const stored = (await network.profileState()).profile;
+      if (stored?.complete) {
+        profile = { ...stored, accountId: user.id };
+        localStorage.setItem('study-desk-profile', JSON.stringify(profile));
+        await showLibraryStep();
+        return;
+      }
+      const local = network.savedProfile(user.id);
+      document.getElementById('player-name').value = local?.name || stored?.name || user.name || '';
+      avatar = local?.avatar || stored?.avatar || 'male';
+      choices.forEach((choice) => choice.classList.toggle('is-active', choice.dataset.avatar === avatar));
+      form.hidden = false;
+      return;
+    }
     const saved = network.savedProfile(user?.id || null);
     if (saved?.name && ['male', 'girl'].includes(saved.avatar)) {
       document.getElementById('player-name').value = saved.name;
@@ -190,8 +282,9 @@ export function initJoinScreen() {
 
   const start = async () => {
     const state = await network.authState();
+    databaseActive = state.databaseEnabled === true;
     if (!state.enabled || state.user) {
-      showProfileStep(state.user);
+      await showProfileStep(state.user);
       return;
     }
     authStep.hidden = false;
@@ -203,7 +296,7 @@ export function initJoinScreen() {
         try {
           const user = await network.signInWithGoogle(credential);
           authMessage.textContent = '';
-          showProfileStep(user);
+          await showProfileStep(user);
         } catch (error) {
           authMessage.textContent = error.message;
         }

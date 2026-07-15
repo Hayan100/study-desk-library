@@ -54,7 +54,30 @@
         <button type="button" class="avatar-choice" data-avatar="girl">Girl</button>
       </div>
       <button class="btn-primary" type="submit">Join library</button>
+      <p id="profile-message" class="auth-message" role="status"></p>
     </form>
+    <section id="library-step" class="join-card library-card" hidden>
+      <div class="join-mark" aria-hidden="true">&#128218;</div>
+      <h1>Choose your study library</h1>
+      <p>Create a space for your group, or join one with an invite link.</p>
+      <div id="saved-libraries" class="saved-libraries" hidden>
+        <span class="field-label">Your libraries</span>
+        <div id="saved-library-list" class="saved-library-list"></div>
+      </div>
+      <form id="create-library-form" class="library-option">
+        <strong>Create your own library</strong>
+        <span>You will be its admin and can invite study partners.</span>
+        <input id="library-name-input" class="text-input" maxlength="80" placeholder="Library name" required />
+        <button class="btn-primary" type="submit">Create library</button>
+      </form>
+      <form id="join-library-form" class="library-option">
+        <strong>Join a library</strong>
+        <span>Paste the invite link an admin shared with you.</span>
+        <input id="library-invite-input" class="text-input" maxlength="240" placeholder="https://.../room/..." required />
+        <button class="btn-secondary" type="submit">Join with invite</button>
+      </form>
+      <p id="library-message" class="auth-message" role="status"></p>
+    </section>
   </div>
 
   <aside id="people-panel" class="people-panel" hidden>
@@ -66,7 +89,7 @@
       <button id="chat-rail" class="rail-button" type="button" title="Chat" aria-label="Open chat">&#9675;<span id="chat-unread" class="chat-unread" hidden></span></button>
     </nav>
     <section class="people-sidebar">
-      <div class="people-heading"><strong>STUDY DESK</strong><span class="connection-dot"></span></div>
+      <div class="people-heading"><strong id="library-name">STUDY DESK</strong><span class="connection-dot"></span></div>
       <div class="invite-card"><strong>Study together</strong><span>Quiet company, shared focus.</span><button id="invite-open" type="button">Invite</button></div>
       <input id="people-search" class="people-search" placeholder="Search people" />
       <div class="online-title">Online (<span id="online-count">0</span>)</div>

@@ -24,6 +24,26 @@ export function initSession() {
   let seated = false;
   let running = false;
   let paused = false;
+  let timerPhase = 'focus';
+  let focusStartedAt = 0;
+  let focusedMs = 0;
+  let storedSession = null;
+
+  const startFocusClock = () => {
+    if (!focusStartedAt && timerPhase === 'focus') focusStartedAt = Date.now();
+  };
+  const pauseFocusClock = () => {
+    if (!focusStartedAt) return;
+    focusedMs += Date.now() - focusStartedAt;
+    focusStartedAt = 0;
+  };
+  const finishStoredSession = (completed) => {
+    pauseFocusClock();
+    const pending = storedSession;
+    const focusSeconds = Math.max(0, Math.round(focusedMs / 1000));
+    storedSession = null;
+    if (pending) pending.then((session) => network.finishStudySession(session?.id, completed, focusSeconds)).catch(() => {});
+  };
 
   // --- Mode tabs (Focus / Pomodoro) ---
   tabs.forEach((tab) => {
@@ -58,6 +78,7 @@ export function initSession() {
     if (running) {
       pauseTimer();
       pauseAudio();
+      pauseFocusClock();
       paused = true;
       toggleBtn.disabled = true;
     }
@@ -88,12 +109,17 @@ export function initSession() {
     sessionState.open = false; // Bug 2: allow movement while a session runs
     running = true;
     paused = false;
+    timerPhase = 'focus';
+    focusedMs = 0;
+    focusStartedAt = Date.now();
+    storedSession = network.startStudySession({ mode, topic }).catch(() => null);
     toggleBtn.disabled = false;
     // TODO(step2 – multiplayer): broadcast session start so others can see/join it.
   });
 
   // --- End the running session ---
   endBtn.addEventListener('click', () => {
+    finishStoredSession(false);
     stopTimer();
     stopAudio();
     running = false;
@@ -108,16 +134,24 @@ export function initSession() {
     if (paused) {
       resumeTimer();
       resumeAudio();
+      startFocusClock();
     } else {
+      pauseFocusClock();
       pauseTimer();
       pauseAudio();
     }
     paused = !paused;
   });
 
-  window.addEventListener('timer-phase-change', () => playNotification());
+  window.addEventListener('timer-phase-change', (event) => {
+    pauseFocusClock();
+    timerPhase = event.detail?.phase === 'break' ? 'break' : 'focus';
+    if (timerPhase === 'focus' && !paused) startFocusClock();
+    playNotification();
+  });
   window.addEventListener('timer-sync', (event) => network.status(event.detail));
   window.addEventListener('timer-finished', () => {
+    finishStoredSession(true);
     playNotification();
     stopAudio();
     running = false;

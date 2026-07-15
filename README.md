@@ -19,28 +19,38 @@ Then open the URL it prints:
 http://localhost:3000
 ```
 
-Opening `/` creates a private room URL. Use the sidebar **Invite** button to copy that URL for friends.
+Without a database, opening `/` creates a temporary private room URL. With Supabase
+configured, authenticated users create or join persistent libraries instead.
 
 (Set a different port with `PORT=4000 npm start`.)
 
 ## Deploy as a separate Fly.io app
 
-Production requires Google authentication:
+Production requires Google authentication and a Supabase Free Postgres database:
 
 1. In Google Cloud, create an OAuth client with application type **Web application**.
 2. Add `http://localhost:3000` and `https://study-desk-library.fly.dev` as Authorized JavaScript origins.
-3. Set the public client ID and a random session signing secret:
+3. Create a Supabase Free project. In its **SQL Editor**, run
+   [`database/schema.sql`](database/schema.sql) once.
+4. Open **Connect**, choose the **Session pooler** connection string (Fly supports
+   this IPv4-compatible option), and replace the password placeholder with your
+   database password.
+5. Set the server-only database URL, public Google client ID, and random session
+   signing secret. Never put the database URL in client-side code:
 
    ```bash
-   fly secrets set GOOGLE_CLIENT_ID="your-id.apps.googleusercontent.com" SESSION_SECRET="a-random-value-at-least-32-characters"
+   fly secrets set --app study-desk-library GOOGLE_CLIENT_ID="your-id.apps.googleusercontent.com" SESSION_SECRET="a-random-value-at-least-32-characters" DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@POOLER_HOST:5432/postgres?sslmode=require" DATABASE_REQUIRED="true"
    ```
 
-4. Run `fly deploy --ha=false`.
-5. Keep one Machine while multiplayer state is stored in memory: `fly scale count 1`.
+6. Run `fly deploy --ha=false`.
+7. Keep one Machine while live multiplayer state is stored in memory:
+   `fly scale count 1 --app study-desk-library`.
 
 Local development stays in guest mode unless `GOOGLE_CLIENT_ID` and `SESSION_SECRET` are set.
 
-The health check is available at `/health`. Active rooms and occupied chairs reset when the Machine restarts.
+The health check is available at `/health`. Accounts, libraries, memberships, and
+study-session records persist in Supabase. Live positions, chat bubbles, and occupied
+chairs intentionally reset when the Machine restarts.
 
 ## Controls
 
@@ -75,3 +85,13 @@ falls back to a colored placeholder and logs the expected path to the console
 
 Google credentials are verified by the server. The browser receives only a signed,
 HTTP-only Study Desk session cookie; no Google access token is stored.
+
+## Security invariants
+
+- Authentication, library membership, chair ownership, and chat admission are
+  decided by the server, never by browser state.
+- SQL stays parameterized and the Supabase connection string stays server-only.
+- New request and Socket.IO payloads must be bounded, normalized, rate-limited
+  where abusable, and rendered with safe DOM APIs rather than raw HTML.
+- Production changes should keep generic client errors, secret-free logs, pinned
+  dependencies, security headers, HTTPS, and signed HTTP-only cookies intact.

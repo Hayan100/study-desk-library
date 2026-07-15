@@ -5,10 +5,18 @@ const players = new Map();
 let chatBubbles = [];
 let scene = null;
 let profile = null;
+let databaseEnabled = false;
 const pathRoom = location.pathname.match(/^\/room\/([a-z0-9-]{6,48})\/?$/i)?.[1]?.toLowerCase();
-// SECURITY: invite links are bearer access. A full random UUID replaces the old 32-bit suffix.
-export const roomId = pathRoom || `room-${crypto.randomUUID()}`;
-if (!pathRoom) history.replaceState(null, '', `/room/${roomId}`);
+// The URL may contain an invite capability before authentication. It becomes the
+// active Socket.IO room only after the server confirms this user's membership.
+export let roomId = pathRoom || null;
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { credentials: 'same-origin', ...options });
+  const result = response.status === 204 ? {} : await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'Request failed');
+  return result;
+}
 
 socket.on('players:snapshot', (list) => {
   if (!Array.isArray(list)) return;
@@ -68,9 +76,9 @@ socket.on('chat:bubbles', (bubbles) => {
 
 export const network = {
   async authState() {
-    const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
-    if (!response.ok) throw new Error('Could not check sign-in status');
-    return response.json();
+    const state = await api('/api/auth/me');
+    databaseEnabled = state.databaseEnabled === true;
+    return state;
   },
   async signInWithGoogle(credential) {
     const response = await fetch('/api/auth/google', {
@@ -87,7 +95,37 @@ export const network = {
     localStorage.removeItem('study-desk-profile');
     socket.disconnect();
   },
-  join(nextProfile) {
+  async profileState() {
+    if (!databaseEnabled) return { profile: null };
+    return api('/api/profile');
+  },
+  async saveProfile(nextProfile) {
+    if (!databaseEnabled) return nextProfile;
+    const result = await api('/api/profile', {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(nextProfile),
+    });
+    return result.profile;
+  },
+  async libraries() {
+    return databaseEnabled ? (await api('/api/libraries')).libraries : [];
+  },
+  async createLibrary(name) {
+    return (await api('/api/libraries', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
+    })).library;
+  },
+  async joinLibrary(value) {
+    let inviteToken = String(value || '').trim();
+    try {
+      inviteToken = new URL(inviteToken, location.origin).pathname.match(/^\/room\/([a-z0-9-]{6,48})\/?$/i)?.[1] || inviteToken;
+    } catch { /* A raw token is also accepted. */ }
+    return (await api('/api/libraries/join', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ inviteToken }),
+    })).library;
+  },
+  join(nextProfile, nextRoomId = roomId) {
+    roomId = nextRoomId || `room-${crypto.randomUUID()}`;
+    history.replaceState(null, '', `/room/${roomId}`);
     profile = nextProfile;
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
     scene?.setLocalAvatar(profile.avatar);
@@ -106,11 +144,27 @@ export const network = {
     });
   },
   status(state) { socket.emit('player:status', state); },
-  updateProfile(nextProfile) {
+  async updateProfile(nextProfile) {
     profile = { ...profile, ...nextProfile };
+    profile = { ...profile, ...await this.saveProfile(profile) };
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
     scene?.setLocalAvatar(profile.avatar);
     socket.emit('player:profile', profile);
+    return profile;
+  },
+  async startStudySession({ mode, topic }) {
+    if (!databaseEnabled || !roomId) return null;
+    return (await api('/api/study-sessions', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ roomId, mode, topic }),
+    })).studySession;
+  },
+  async finishStudySession(sessionId, completed, focusSeconds) {
+    if (!databaseEnabled || !sessionId) return null;
+    return (await api(`/api/study-sessions/${encodeURIComponent(sessionId)}/finish`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ completed, focusSeconds }),
+    })).studySession;
   },
   savedProfile(accountId = null) {
     try {
@@ -174,7 +228,7 @@ export const network = {
   },
 };
 
-socket.on('connect', () => { if (profile) socket.emit('player:join', { ...profile, roomId }); });
+socket.on('connect', () => { if (profile && roomId) socket.emit('player:join', { ...profile, roomId }); });
 socket.on('connect_error', (error) => {
   window.dispatchEvent(new CustomEvent('network-error', { detail: error.message || 'Connection failed' }));
 });
