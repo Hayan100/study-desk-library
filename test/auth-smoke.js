@@ -62,7 +62,7 @@ function unauthenticatedSocketIsRejected() {
   assert.equal(missing.status, 400);
 
   const invalid = await fetch(`http://localhost:${port}/api/auth/google`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ credential: 'not-a-token' }),
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ accessToken: 'not-a-token-but-long-enough' }),
   });
   assert.equal(invalid.status, 401);
   assert.equal(await unauthenticatedSocketIsRejected(), 'authentication required');

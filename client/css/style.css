@@ -1,14 +1,4 @@
 /* ---------- Base ---------- */
-:root {
-  --md-bg: #181A18;
-  --md-card: #222422;
-  --md-border: #2E302E;
-  --md-accent: #FFC600;
-  --md-accent-hover: #FFD84C;
-  --md-text: #F7F3E7;
-  --md-muted: #B7B9B1;
-  --md-surface: #1C1E1C;
-}
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -243,11 +233,15 @@ body.has-people-panel.sidebar-collapsed #game-container { margin-left: 58px; wid
 .email-auth-form .text-input { margin-bottom: 6px; }
 .auth-email-button { margin-top: 3px; }
 .google-signin {
-  display: flex; justify-content: center; width: 100%; height: 44px; min-height: 44px;
-  overflow: hidden; border-radius: 10px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.14);
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 44px; border: 1px solid #dadce0; border-radius: 10px;
+  background: #fff; color: #3c4043; box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer;
 }
-/* Google's generated wrapper can briefly report its intrinsic logo size; pin it to button dimensions. */
-.google-signin > div, .google-signin iframe { width: 100% !important; height: 44px !important; max-height: 44px !important; }
+.google-signin:hover { background: #f8fafc; border-color: #c4c7c5; }
+.google-signin:focus-visible { outline: 3px solid rgba(99,102,241,.28); outline-offset: 2px; }
+.google-signin:disabled { opacity: .65; cursor: wait; }
+.google-signin-icon { width: 20px; height: 20px; flex: none; }
 .auth-divider { display: flex; align-items: center; gap: 14px; margin: 18px 0; color: #71717a; font-size: 13px; }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: #d4d4d8; }
 .auth-note { display: block; color: #71717a; font-size: 13px; line-height: 1.5; }
@@ -378,62 +372,3 @@ body.has-people-panel.sidebar-collapsed #game-container { margin-left: 58px; wid
 .avatar-editor-panel footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 22px; border-top: 1px solid #e5e7eb; }
 .avatar-editor-panel footer button { width: auto; margin: 0; padding: 10px 20px; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer; }
 @media (max-width: 760px) { .avatar-editor-body { grid-template-columns: 1fr; } .avatar-editor-body aside { display: none; } .avatar-stage { min-height: 230px; } }
-
-/* MDCATEMY dark-brand layer: keeps the game canvas untouched while unifying every HTML control. */
-html, body { background: var(--md-bg); color: var(--md-text); }
-.modal-card, .join-card, .auth-card, .people-panel, .chat-panel, .profile-card,
-.profile-editor, .avatar-editor-panel, .invite-dialog, .timer-hud {
-  background: var(--md-card); color: var(--md-text); border-color: var(--md-border);
-}
-.modal-card h2, .modal-card h3, .join-card h1, .join-card h2, .people-panel h2,
-.chat-panel h2, .profile-card h2, .profile-editor h2, .avatar-editor-panel h2 { color: var(--md-text); }
-.modal-subtitle, .join-card p, .auth-card > p, .auth-note, .field-label,
-.people-panel p, .chat-empty, .profile-card p, .avatar-editor-panel p { color: var(--md-muted); }
-.auth-brand-logo { width: 210px; height: 78px; margin-top: -4px; }
-.auth-product-name { color: var(--md-accent); }
-.auth-divider { color: var(--md-muted); }
-.auth-divider::before, .auth-divider::after { background: var(--md-border); }
-.text-input, .select, .people-search, .chat-form input, .profile-editor input,
-.profile-editor select, .invite-dialog input, .invite-dialog textarea {
-  background: var(--md-surface); color: var(--md-text); border-color: var(--md-border);
-}
-.text-input::placeholder, .people-search::placeholder, .chat-form input::placeholder,
-.profile-editor input::placeholder, .invite-dialog input::placeholder { color: #8E9189; }
-.text-input:focus, .select:focus, .people-search:focus, .chat-form input:focus,
-.profile-editor input:focus, .profile-editor select:focus, .invite-dialog input:focus,
-.invite-dialog textarea:focus { border-color: var(--md-accent); outline-color: var(--md-accent); }
-.btn-primary, .auth-email-button, .invite-button, .chat-form button, .profile-editor .save-button,
-.avatar-editor-panel footer button:last-child {
-  background: var(--md-accent); color: #181A18;
-}
-.btn-primary:hover, .auth-email-button:hover, .invite-button:hover, .chat-form button:hover,
-.profile-editor .save-button:hover, .avatar-editor-panel footer button:last-child:hover { background: var(--md-accent-hover); }
-.btn-secondary, .avatar-choice, .library-choice, .sound-pill, .mode-tab, .profile-editor button,
-.avatar-editor-panel footer button:first-child { background: var(--md-surface); color: var(--md-text); border-color: var(--md-border); }
-.avatar-choice.selected, .library-choice.selected, .sound-pill.selected, .mode-tab.active { border-color: var(--md-accent); color: var(--md-accent); }
-.google-signin {
-  display: flex; justify-content: center; width: 100%; min-height: 44px;
-  overflow: visible; border-radius: 999px; background: transparent; box-shadow: none;
-}
-.google-signin:focus-visible { outline: 3px solid var(--md-accent); outline-offset: 3px; }
-.google-signin > div { display: flex !important; justify-content: center; width: 100% !important; }
-.google-signin iframe { display: block !important; }
-.utility-rail { background: var(--md-surface); border-color: var(--md-border); }
-.rail-logo { background: var(--md-card); border-color: var(--md-border); color: var(--md-accent); }
-.rail-button { color: var(--md-muted); }
-.rail-button.active, .rail-button:hover { background: var(--md-card); color: var(--md-accent); }
-.people-panel { border-color: var(--md-border); }
-.people-panel-header, .chat-header, .profile-card-header, .avatar-editor-panel header { border-color: var(--md-border); }
-.invite-card { background: var(--md-surface); border-color: var(--md-accent); }
-.invite-card h3, .person-name, .profile-name, .chat-message strong { color: var(--md-text); }
-.person-row:hover { background: #292B29; }
-.person-avatar, .profile-avatar { background: var(--md-accent); color: #181A18; }
-.chat-message { background: var(--md-surface); color: var(--md-text); }
-.chat-message.chat-self { background: var(--md-accent); color: #181A18; }
-.chat-message.chat-self strong { color: #181A18; }
-.timer-hud { box-shadow: 0 12px 28px rgba(0,0,0,.35); }
-.timer-hud.running { border-color: var(--md-accent); }
-.timer-hud.running .timer-time, .timer-hud.running .timer-label { color: var(--md-accent); }
-.timer-hud.paused { border-color: #8A6A2B; }
-.timer-hud.break { border-color: #4E8D68; }
-.profile-overlay, .modal-overlay, .invite-overlay, .avatar-editor-overlay { background: rgba(0,0,0,.68); }

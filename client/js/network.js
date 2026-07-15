@@ -80,11 +80,11 @@ export const network = {
     databaseEnabled = state.databaseEnabled === true;
     return state;
   },
-  async signInWithGoogle(credential) {
+  async signInWithGoogle(accessToken) {
     const response = await fetch('/api/auth/google', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ credential }),
+      body: JSON.stringify({ accessToken }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Google sign-in failed');

@@ -272,9 +272,9 @@ export function initJoinScreen() {
   };
 
   const waitForGoogle = () => {
-    if (window.google?.accounts?.id) return Promise.resolve();
+    if (window.google?.accounts?.oauth2) return Promise.resolve();
     return new Promise((resolve, reject) => {
-      // Load Google's managed button only when authentication is configured, so
+      // Load Google's OAuth client only when authentication is configured, so
       // guest-mode development does not contact a third party unnecessarily.
       const script = document.createElement('script');
       script.id = 'google-identity-script';
@@ -297,12 +297,17 @@ export function initJoinScreen() {
     authStep.hidden = false;
     await waitForGoogle();
     const googleSignIn = document.getElementById('google-signin');
-    window.google.accounts.id.initialize({
+    const tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: state.clientId,
-      callback: async ({ credential }) => {
+      scope: 'openid email profile',
+      callback: async ({ access_token: accessToken, error }) => {
+        if (error || !accessToken) {
+          authMessage.textContent = 'Google sign-in was cancelled or could not be completed.';
+          return;
+        }
         authMessage.textContent = 'Signing in...';
         try {
-          const user = await network.signInWithGoogle(credential);
+          const user = await network.signInWithGoogle(accessToken);
           authMessage.textContent = '';
           await showProfileStep(user);
         } catch (error) {
@@ -310,16 +315,13 @@ export function initJoinScreen() {
         }
       },
     });
-    // SECURITY: use Google's managed button flow; the returned credential is still validated by the server.
-    window.google.accounts.id.renderButton(googleSignIn, {
-      type: 'standard',
-      theme: 'filled_black',
-      size: 'large',
-      text: 'signin_with',
-      shape: 'pill',
-      logo_alignment: 'left',
-      width: 400,
-    });
+    // SECURITY: this native button only requests a short-lived Google token;
+    // the server independently validates it before creating a session.
+    googleSignIn.disabled = false;
+    googleSignIn.onclick = () => {
+      authMessage.textContent = '';
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
+    };
   };
 
   start().catch((error) => {

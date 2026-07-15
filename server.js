@@ -359,14 +359,25 @@ app.get('/api/auth/me', asyncRoute(async (req, res) => {
 app.post('/api/auth/google', async (req, res) => {
   if (!AUTH_ENABLED) return res.status(404).json({ error: 'Authentication is not configured' });
   if (!allowAuth(req)) return res.status(429).json({ error: 'Too many sign-in attempts' });
-  const credential = typeof req.body?.credential === 'string' && req.body.credential.length <= 10000
-    ? req.body.credential : '';
-  if (!credential) return res.status(400).json({ error: 'Google credential is required' });
+  const accessToken = typeof req.body?.accessToken === 'string' && req.body.accessToken.length <= 4096
+    ? req.body.accessToken.trim() : '';
+  if (!accessToken) return res.status(400).json({ error: 'Google access token is required' });
   let payload;
   try {
-    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
-    payload = ticket.getPayload();
-    if (!payload?.sub || !payload.email || payload.email_verified !== true) throw new Error('unverified Google account');
+    const tokenInfo = await googleClient.getTokenInfo(accessToken);
+    if (tokenInfo.aud !== GOOGLE_CLIENT_ID || !tokenInfo.sub || !tokenInfo.email ||
+        tokenInfo.email_verified !== true || tokenInfo.expiry_date <= Date.now()) {
+      throw new Error('unverified Google account');
+    }
+    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!profileResponse.ok) throw new Error('Google profile lookup failed');
+    payload = await profileResponse.json();
+    if (payload.sub !== tokenInfo.sub || payload.email !== tokenInfo.email || payload.email_verified !== true) {
+      throw new Error('Google profile mismatch');
+    }
   } catch {
     return res.status(401).json({ error: 'Google sign-in could not be verified' });
   }
@@ -379,7 +390,7 @@ app.post('/api/auth/google', async (req, res) => {
       return res.status(503).json({ error: 'Account storage is temporarily unavailable' });
     }
   }
-  // SECURITY: the raw Google credential, email, and access tokens never enter the
+  // SECURITY: the raw Google access token and email never enter the
   // signed browser session. The database is the only durable owner of the email.
   req.session.user = { sub: payload.sub, name };
   return res.json({ user: { id: publicUserId(payload.sub), name } });
