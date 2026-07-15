@@ -1,4 +1,5 @@
 import { network } from './network.js';
+import { playNotification } from './audio.js';
 
 // Chat is deliberately ephemeral: messages live only in this tab and disappear
 // when it closes. The server relays them only to current communication-bubble members.
@@ -20,6 +21,13 @@ export function initChat() {
   const input = document.getElementById('chat-input');
   const send = form.querySelector('button');
   let visibleBubbleId = null;
+  let unreadCount = 0;
+
+  const showUnread = () => {
+    badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+    badge.hidden = unreadCount === 0;
+  };
+  const clearUnread = () => { unreadCount = 0; showUnread(); };
 
   const current = () => network.currentBubble();
   const open = () => {
@@ -28,7 +36,7 @@ export function initChat() {
     panel.hidden = false;
     rail.classList.add('is-active');
     peopleRail.classList.remove('is-active');
-    badge.hidden = true;
+    clearUnread();
     const bubble = current();
     if (bubble) visibleBubbleId = bubble.id;
     render();
@@ -55,7 +63,7 @@ export function initChat() {
     name.textContent = active ? (memberNames.join(', ') || 'Communication bubble') : 'Communication bubble';
     presence.textContent = notice || (bubble
       ? `${bubble.locked ? 'Locked' : 'Open'} · ${bubble.memberIds.length} people`
-      : 'Move near someone and press C');
+      : 'Move near someone to connect');
     presence.classList.toggle('is-far', !active);
     lock.hidden = !active;
     leave.hidden = !active;
@@ -63,7 +71,7 @@ export function initChat() {
     lock.classList.toggle('is-locked', Boolean(bubble?.locked));
     input.disabled = !active;
     send.disabled = !active;
-    input.placeholder = active ? 'Write to this bubble' : 'Press C near another student';
+    input.placeholder = active ? 'Write to this bubble' : 'Move near another student';
 
     messages.replaceChildren(...history.map((message) => {
       const row = document.createElement('div');
@@ -80,7 +88,7 @@ export function initChat() {
     empty.hidden = history.length > 0;
     if (!empty.hidden) empty.textContent = active
       ? 'This bubble is ready. Messages are visible only to its current members.'
-      : 'Walk near another student and press C to create or join a white communication bubble.';
+      : 'Walk near another student to automatically form a white communication bubble.';
     messages.scrollTop = messages.scrollHeight;
   };
 
@@ -89,7 +97,13 @@ export function initChat() {
   document.getElementById('chat-close').addEventListener('click', close);
   window.addEventListener('open-chat', open);
   window.addEventListener('players-updated', () => { if (!panel.hidden) render(); });
-  window.addEventListener('chat-bubbles', () => { if (!panel.hidden) render(); });
+  window.addEventListener('chat-bubbles', () => {
+    if (!current() && visibleBubbleId) {
+      visibleBubbleId = null;
+      if (!panel.hidden) { close(); return; }
+    }
+    if (!panel.hidden) render();
+  });
   window.addEventListener('chat-notice', ({ detail }) => { open(); render(detail || 'Could not join a bubble'); });
   window.addEventListener('chat-message', ({ detail: message }) => {
     if (!message?.bubbleId || typeof message.text !== 'string') return;
@@ -97,8 +111,12 @@ export function initChat() {
     history.push(message);
     if (history.length > 100) history.shift();
     threads.set(message.bubbleId, history);
-    if (!panel.hidden && current()?.id === message.bubbleId) render();
-    else badge.hidden = false;
+    const viewing = !panel.hidden && current()?.id === message.bubbleId;
+    if (viewing) render();
+    if (message.from !== network.selfId()) {
+      playNotification();
+      if (!viewing) { unreadCount += 1; showUnread(); }
+    }
   });
 
   lock.addEventListener('click', () => {
@@ -110,7 +128,10 @@ export function initChat() {
       if (!response.ok) render(response.error || 'Could not change bubble lock');
     });
   });
-  leave.addEventListener('click', () => network.leaveBubble(() => render('You left the communication bubble')));
+  leave.addEventListener('click', () => network.leaveBubble((response = {}) => {
+    if (response.ok) close();
+    else render(response.error || 'Could not leave the communication bubble');
+  }));
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

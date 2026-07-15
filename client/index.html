@@ -99,12 +99,23 @@
   </div>
 
   <aside id="people-panel" class="people-panel" hidden>
-    <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">&#x25E7;</button>
+    <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM9 5v14m4-10 3 3-3 3" /></svg>
+    </button>
     <nav class="utility-rail" aria-label="Workspace tools">
-      <div class="rail-logo">SD</div>
-      <button id="people-rail" class="rail-button is-active" type="button" title="People" aria-label="Show people">&#9679;</button>
-      <button class="rail-button" type="button" title="Map">&#9671;</button>
-      <button id="chat-rail" class="rail-button" type="button" title="Chat" aria-label="Open chat">&#9675;<span id="chat-unread" class="chat-unread" hidden></span></button>
+      <img class="rail-logo" src="/assets/branding/study-desk-icon.png" alt="Study Desk" />
+      <button id="people-rail" class="rail-button is-active" type="button" title="Library" aria-label="Show library">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5zM4 6.5v13M8 8h8" /></svg>
+      </button>
+      <button id="chat-rail" class="rail-button" type="button" title="Chat" aria-label="Open chat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5 3.5 21v-5A8 8 0 1 1 7 18.5ZM8 10h8m-8 4h5" /></svg>
+        <span id="chat-unread" class="chat-unread" hidden>0</span>
+      </button>
+      <button id="profile-launcher" class="profile-launcher" type="button" aria-label="Open profile">
+        <span id="profile-launcher-photo" class="profile-launcher-photo">S</span>
+        <span id="profile-launcher-name" class="profile-launcher-name">Student</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+      </button>
     </nav>
     <section class="people-sidebar">
       <div class="people-heading"><strong id="library-name">STUDY DESK</strong><span class="connection-dot"></span></div>
@@ -148,8 +159,29 @@
     <div id="profile-card-photo" class="profile-photo">S</div>
     <div><strong id="profile-card-name">Student</strong><small>Online in Study Desk</small></div>
     <button id="profile-edit" class="btn-primary">Edit Profile</button>
+    <button id="profile-analytics" class="profile-analytics" type="button">Analytics</button>
     <button id="profile-logout" class="profile-logout" type="button">Sign out</button>
   </section>
+
+  <div id="analytics-modal" class="profile-backdrop" hidden>
+    <section class="analytics-dialog" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
+      <button id="analytics-close" type="button" class="profile-close" aria-label="Close">&times;</button>
+      <h2 id="analytics-title">Your study analytics</h2>
+      <p id="analytics-status" class="analytics-status" role="status">Loading your sessions...</p>
+      <div id="analytics-content" hidden>
+        <div class="analytics-stats">
+          <article><span>Total focused</span><strong id="analytics-total">0m</strong></article>
+          <article><span>Today</span><strong id="analytics-today">0m</strong></article>
+          <article><span>Completed</span><strong id="analytics-completed">0</strong></article>
+          <article><span>Current streak</span><strong id="analytics-streak">0 days</strong></article>
+        </div>
+        <h3>Last seven days</h3>
+        <div id="analytics-week" class="analytics-week"></div>
+        <h3>Recent sessions</h3>
+        <div id="analytics-recent" class="analytics-recent"></div>
+      </div>
+    </section>
+  </div>
 
   <div id="profile-modal" class="profile-backdrop" hidden>
     <form id="profile-form" class="profile-editor">

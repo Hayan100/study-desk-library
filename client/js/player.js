@@ -135,6 +135,26 @@ export class Player {
     this.playDir(this.sitting ? 'sit' : 'idle', this.facing);
   }
 
+  applyServerPosition(state) {
+    if (!Number.isInteger(state?.c) || !Number.isInteger(state?.r)) return;
+    const wasSitting = this.sitting;
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.walkAudio.pause();
+    this.path = [];
+    this.pendingChair = null;
+    this.moving = false;
+    this.sitting = false;
+    this.standTile = null;
+    this.c = state.c;
+    this.r = state.r;
+    if (['up', 'down', 'left', 'right'].includes(state.facing)) this.facing = state.facing;
+    const { x, y } = this.tileToPixel(this.c, this.r);
+    this.sprite.setPosition(x, y).setDepth(1000);
+    this.seatedOverlay?.setVisible(false).setCrop();
+    this.playDir('idle', this.facing);
+    if (wasSitting) window.dispatchEvent(new CustomEvent('player-stood'));
+  }
+
   followPath(path, chair = null) {
     if (this.sitting) this.stand();
     this.path = path.slice();

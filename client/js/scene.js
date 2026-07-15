@@ -191,6 +191,8 @@ export class LibraryScene extends Phaser.Scene {
 
   setLocalAvatar(avatar) { this.player?.setAvatar(avatar); }
 
+  moveLocalPlayer(state) { this.player?.applyServerPosition(state); }
+
   setChatBubbles(bubbles, selfId) {
     this.chatBubbles = Array.isArray(bubbles) ? bubbles : [];
     this.chatSelfId = selfId;
@@ -341,16 +343,7 @@ export class LibraryScene extends Phaser.Scene {
     this.keys.C.on('down', () => {
       if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
       if (document.body.classList.contains('profile-open')) return;
-      if (network.currentBubble()) {
-        window.dispatchEvent(new CustomEvent('open-chat'));
-        return;
-      }
-      network.enterBubble((response = {}) => {
-        if (response.ok) window.dispatchEvent(new CustomEvent('open-chat'));
-        else window.dispatchEvent(new CustomEvent('chat-notice', {
-          detail: response.error || 'Move near another student to chat',
-        }));
-      });
+      if (network.currentBubble()) window.dispatchEvent(new CustomEvent('open-chat'));
     });
 
     this.input.on('pointerdown', (pointer) => {
@@ -435,13 +428,8 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     const current = network.currentBubble();
-    const canEnter = !current && network.playerPositions().some(({ id, self }) => {
-      if (self || !network.isNearby(id)) return false;
-      const otherBubble = this.chatBubbles.find((bubble) => bubble.memberIds.includes(id));
-      return !otherBubble?.locked;
-    });
-    this.chatHint.setVisible(canEnter);
-    if (canEnter) this.chatHint.setPosition(this.player.sprite.x, this.player.sprite.y - 82);
+    this.chatHint.setVisible(Boolean(current));
+    if (current) this.chatHint.setPosition(this.player.sprite.x, this.player.sprite.y - 82);
   }
 
   update() {

@@ -25,6 +25,9 @@ export function initJoinScreen() {
   let databaseActive = false;
   const toggle = document.getElementById('sidebar-toggle');
   const card = document.getElementById('profile-card');
+  const launcher = document.getElementById('profile-launcher');
+  const analyticsButton = document.getElementById('profile-analytics');
+  const analyticsModal = document.getElementById('analytics-modal');
   const editor = document.getElementById('profile-modal');
   const avatarEditor = document.getElementById('avatar-modal');
   const inviteModal = document.getElementById('invite-modal');
@@ -54,12 +57,14 @@ export function initJoinScreen() {
 
   const refreshProfile = () => {
     const initial = (profile.name || 'Student')[0].toUpperCase();
-    for (const id of ['profile-card-photo', 'profile-photo-preview']) {
+    for (const id of ['profile-card-photo', 'profile-photo-preview', 'profile-launcher-photo']) {
       const photo = document.getElementById(id);
       photo.textContent = profile.photo ? '' : initial;
       photo.style.background = profile.photo ? `url(${profile.photo}) center/cover` : profile.color;
     }
     document.getElementById('profile-card-name').textContent = profile.name;
+    document.getElementById('profile-launcher-name').textContent = profile.name;
+    analyticsButton.hidden = !(databaseActive && account);
     document.getElementById('profile-avatar-preview').className = `avatar-preview is-${profile.avatar}`;
     document.getElementById('avatar-stage-preview').className = `avatar-preview is-${profile.avatar}`;
     document.getElementById('avatar-stage-name').textContent = profile.name;
@@ -70,6 +75,7 @@ export function initJoinScreen() {
   const enter = (nextProfile, library = null) => {
     nextProfile.color ||= '#86efac';
     profile = nextProfile;
+    refreshProfile();
     network.join(nextProfile, library?.inviteToken || roomId);
     document.getElementById('library-name').textContent = library?.name || 'STUDY DESK';
     refreshInvite();
@@ -89,6 +95,7 @@ export function initJoinScreen() {
   const openCard = () => { refreshProfile(); card.hidden = false; };
   const closeCard = () => { card.hidden = true; };
   window.addEventListener('open-profile', openCard);
+  launcher.addEventListener('click', () => card.hidden ? openCard() : closeCard());
   document.getElementById('profile-card-close').addEventListener('click', closeCard);
   document.getElementById('profile-logout').addEventListener('click', async () => {
     await network.logout();
@@ -102,6 +109,56 @@ export function initJoinScreen() {
   });
   document.getElementById('profile-modal-close').addEventListener('click', () => {
     editor.hidden = true; document.body.classList.remove('profile-open');
+  });
+
+  const formatFocus = (seconds) => {
+    const minutes = Math.round(Math.max(0, Number(seconds) || 0) / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;
+  };
+  const renderAnalytics = (analytics) => {
+    document.getElementById('analytics-total').textContent = formatFocus(analytics.totalFocusSeconds);
+    document.getElementById('analytics-today').textContent = formatFocus(analytics.todayFocusSeconds);
+    document.getElementById('analytics-completed').textContent = String(analytics.completedSessionCount || 0);
+    const streak = Number(analytics.currentStreak) || 0;
+    document.getElementById('analytics-streak').textContent = `${streak} day${streak === 1 ? '' : 's'}`;
+    document.getElementById('analytics-week').replaceChildren(...analytics.lastSevenDays.map((day) => {
+      const item = document.createElement('div'); item.className = 'analytics-day';
+      const label = document.createElement('strong');
+      label.textContent = new Date(`${day.date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
+      const value = document.createElement('small'); value.textContent = formatFocus(day.focusSeconds);
+      item.append(label, value); return item;
+    }));
+    const recent = analytics.recentSessions.map((session) => {
+      const item = document.createElement('article'); item.className = 'analytics-session';
+      const title = document.createElement('strong'); title.textContent = session.topic || (session.mode === 'pomodoro' ? 'Pomodoro' : 'Focus session');
+      const date = document.createElement('span'); date.textContent = new Date(session.startedAt).toLocaleString();
+      const duration = document.createElement('strong'); duration.textContent = formatFocus(session.focusSeconds);
+      item.append(title, date, duration); return item;
+    });
+    if (!recent.length) {
+      const empty = document.createElement('p'); empty.className = 'analytics-empty';
+      empty.textContent = 'No finished study sessions yet.'; recent.push(empty);
+    }
+    document.getElementById('analytics-recent').replaceChildren(...recent);
+  };
+  analyticsButton.addEventListener('click', async () => {
+    closeCard();
+    analyticsModal.hidden = false;
+    document.body.classList.add('profile-open');
+    const status = document.getElementById('analytics-status');
+    const content = document.getElementById('analytics-content');
+    status.hidden = false; status.textContent = 'Loading your sessions...'; content.hidden = true;
+    try {
+      renderAnalytics(await network.analytics());
+      status.hidden = true; content.hidden = false;
+    } catch (error) {
+      status.textContent = error.message || 'Analytics could not be loaded';
+    }
+  });
+  document.getElementById('analytics-close').addEventListener('click', () => {
+    analyticsModal.hidden = true; document.body.classList.remove('profile-open');
   });
   const avatarLibrary = document.getElementById('avatar-library');
   AVATARS.forEach(({ id, name }) => {

@@ -6,6 +6,7 @@ let chatBubbles = [];
 let scene = null;
 let profile = null;
 let databaseEnabled = false;
+let selectedStudentId = null;
 const pathRoom = location.pathname.match(/^\/room\/([a-z0-9-]{6,48})\/?$/i)?.[1]?.toLowerCase();
 // The URL may contain an invite capability before authentication. It becomes the
 // active Socket.IO room only after the server confirms this user's membership.
@@ -58,6 +59,7 @@ for (const event of ['player:seated', 'player:stood']) socket.on(event, (player)
 });
 socket.on('player:left', (id) => {
   players.delete(id);
+  if (selectedStudentId === id) selectedStudentId = null;
   scene?.removeRemotePlayer(id);
   updateRoster();
   notifyPlayers();
@@ -166,6 +168,9 @@ export const network = {
       body: JSON.stringify({ completed, focusSeconds }),
     })).studySession;
   },
+  async analytics() {
+    return (await api('/api/analytics')).analytics;
+  },
   savedProfile(accountId = null) {
     try {
       const saved = JSON.parse(localStorage.getItem('study-desk-profile'));
@@ -191,6 +196,18 @@ export const network = {
     const self = players.get(socket.id), other = players.get(id);
     return Boolean(self && other && self.id !== other.id
       && Math.max(Math.abs(self.c - other.c), Math.abs(self.r - other.r)) <= 4);
+  },
+  goToStudent(targetId, reply = () => {}) {
+    socket.emit('player:travel', { targetId }, (response = {}) => {
+      if (response.ok && response.player) {
+        const self = players.get(socket.id);
+        if (self) Object.assign(self, response.player);
+        scene?.moveLocalPlayer(response.player);
+        updateRoster();
+        notifyPlayers();
+      }
+      reply(response);
+    });
   },
   currentBubble() { return chatBubbles.find((bubble) => bubble.memberIds.includes(socket.id)) || null; },
   enterBubble(reply = () => {}) { socket.emit('chat:enter', {}, reply); },
@@ -250,7 +267,7 @@ function updateRoster() {
   list.replaceChildren(...visible.map((player) => {
     const nearby = player.id !== socket.id && network.isNearby(player.id);
     const row = document.createElement('div');
-    row.className = `person-row${nearby ? ' is-chat-ready' : ''}`;
+    row.className = `person-row${nearby ? ' is-chat-ready' : ''}${player.id !== socket.id ? ' is-selectable' : ''}`;
     const initial = document.createElement('span');
     initial.className = `person-avatar is-${player.avatar}`;
     if (player.color) initial.style.background = player.color;
@@ -265,6 +282,35 @@ function updateRoster() {
     status.textContent = `${player.status || 'Active'}${player.topic ? ` · ${player.topic}` : ''}${clock}`;
     info.append(name, status);
     row.append(initial, info);
+    if (player.id !== socket.id) {
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-expanded', String(selectedStudentId === player.id));
+      const select = () => { selectedStudentId = selectedStudentId === player.id ? null : player.id; updateRoster(); };
+      row.addEventListener('click', select);
+      row.addEventListener('keydown', (event) => {
+        if (event.target === row && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault(); select();
+        }
+      });
+      if (selectedStudentId === player.id) {
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = 'person-action';
+        action.textContent = 'Go to student';
+        action.addEventListener('click', (event) => {
+          event.stopPropagation();
+          action.disabled = true;
+          action.textContent = 'Going...';
+          network.goToStudent(player.id, (response = {}) => {
+            if (response.ok) { selectedStudentId = null; updateRoster(); return; }
+            action.disabled = false;
+            action.textContent = response.error || 'Could not go to student';
+          });
+        });
+        row.append(action);
+      }
+    }
     return row;
   }));
   document.getElementById('online-count').textContent = players.size;

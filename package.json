@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test:auth": "node test/auth-smoke.js",
+    "test:analytics": "node test/analytics-smoke.js",
     "test:multiplayer": "node test/multiplayer-smoke.js"
   },
   "dependencies": {

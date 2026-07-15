@@ -136,24 +136,24 @@ function leaveBubble(playerId) {
   const bubbleId = playerBubble.get(playerId);
   const bubble = bubbleId && chatBubbles.get(bubbleId);
   playerBubble.delete(playerId);
-  if (!bubble) return;
+  if (!bubble) return false;
   bubble.members.delete(playerId);
   if (bubble.members.size < 2) {
     for (const memberId of bubble.members) playerBubble.delete(memberId);
     chatBubbles.delete(bubble.id);
   }
-  broadcastBubbles(bubble.roomId);
+  return true;
 }
 
 function checkBubbleRange(playerId) {
   const bubbleId = playerBubble.get(playerId);
   const bubble = bubbleId && chatBubbles.get(bubbleId);
-  if (!bubble) return;
+  if (!bubble) return false;
   // Re-check every member when anyone moves. In a three-person chain, moving the
   // middle student can otherwise leave a distant member incorrectly inside the bubble.
   const isolated = [...bubble.members].filter((memberId) => ![...bubble.members]
     .some((otherId) => otherId !== memberId && canChat(players.get(memberId), players.get(otherId))));
-  if (!isolated.length) return;
+  if (!isolated.length) return false;
   for (const memberId of isolated) {
     bubble.members.delete(memberId);
     playerBubble.delete(memberId);
@@ -162,7 +162,29 @@ function checkBubbleRange(playerId) {
     for (const memberId of bubble.members) playerBubble.delete(memberId);
     chatBubbles.delete(bubble.id);
   }
-  broadcastBubbles(bubble.roomId);
+  return true;
+}
+
+function syncProximityBubbles(roomId) {
+  let changed = false;
+  for (const player of roomPlayers(roomId)) {
+    if (playerBubble.has(player.id)) continue;
+    const target = roomPlayers(roomId)
+      .filter((other) => canChat(player, other))
+      .filter((other) => !chatBubbles.get(playerBubble.get(other.id))?.locked)
+      .sort((first, second) => Number(playerBubble.has(second.id)) - Number(playerBubble.has(first.id)))[0];
+    if (!target) continue;
+    let bubble = chatBubbles.get(playerBubble.get(target.id));
+    if (!bubble) {
+      bubble = { id: crypto.randomUUID(), roomId, members: new Set([target.id]), locked: false };
+      chatBubbles.set(bubble.id, bubble);
+      playerBubble.set(target.id, bubble.id);
+    }
+    bubble.members.add(player.id);
+    playerBubble.set(player.id, bubble.id);
+    changed = true;
+  }
+  return changed;
 }
 
 const mapChairs = [
@@ -179,10 +201,19 @@ const firstFloorChairs = [
   ...[29, 32, 36, 39].map((c) => ({ c, r: 18, facing: 'up' })),
 ];
 const chairs = [
-  ...[0, 22].flatMap((offset) => mapChairs.map((chair) => ({ ...chair, c: chair.c + offset, r: chair.r + 22 }))),
-  ...firstFloorChairs,
+  ...[0, 22].flatMap((offset) => mapChairs.map((chair) => ({
+    ...chair, c: chair.c + offset, r: chair.r + 22, width: 2, height: 3,
+  }))),
+  ...firstFloorChairs.map((chair) => ({ ...chair, width: 2, height: 2 })),
 ];
 const chairById = new Map(chairs.map((chair, index) => [`chair-${index}`, chair]));
+const chairTiles = new Set(chairs.flatMap((chair) => {
+  const tiles = [];
+  for (let c = chair.c; c < chair.c + chair.width; c += 1) {
+    for (let r = chair.r - chair.height + 1; r <= chair.r; r += 1) tiles.push(`${c},${r}`);
+  }
+  return tiles;
+}));
 
 function addMapCollision(file, offsets, collisionLayers) {
   const map = JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8'));
@@ -211,6 +242,24 @@ function findSpawn(roomId) {
       if (c >= 0 && r >= 0 && c < WORLD_COLS && r < WORLD_ROWS
         && !blockedTiles.has(`${c},${r}`) && !isOccupied(roomId, c, r)) return { c, r };
     }
+  }
+  return null;
+}
+
+function findTravelTile(player, target) {
+  for (let radius = 1; radius <= CHAT_DISTANCE; radius += 1) {
+    const candidates = [];
+    for (let dc = -radius; dc <= radius; dc += 1) for (let dr = -radius; dr <= radius; dr += 1) {
+      if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+      const c = target.c + dc, r = target.r + dr;
+      if (c < 0 || r < 0 || c >= WORLD_COLS || r >= WORLD_ROWS
+        || blockedTiles.has(`${c},${r}`) || chairTiles.has(`${c},${r}`)
+        || isOccupied(player.roomId, c, r, player.id)) continue;
+      candidates.push({ c, r });
+    }
+    candidates.sort((first, second) => (Math.abs(first.c - player.c) + Math.abs(first.r - player.r))
+      - (Math.abs(second.c - player.c) + Math.abs(second.r - player.r)));
+    if (candidates[0]) return candidates[0];
   }
   return null;
 }
@@ -465,6 +514,11 @@ app.post('/api/study-sessions/:sessionId/finish', requireAccount, requireDatabas
     if (!studySession) return res.status(404).json({ error: 'Active study session not found' });
     return res.json({ studySession });
   }));
+app.get('/api/analytics', requireAccount, requireDatabase, requireCompleteProfile, asyncRoute(async (req, res) => {
+  // SECURITY: analytics ownership comes only from the signed session; client IDs are ignored.
+  const analytics = await database.getStudyAnalytics(req.session.user.sub);
+  return res.json({ analytics });
+}));
 app.use(express.static(path.join(__dirname, 'client'), { dotfiles: 'deny', index: 'index.html' }));
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { dotfiles: 'deny', fallthrough: false }));
 app.get('/room/:roomId', (req, res, next) => {
@@ -516,8 +570,9 @@ io.on('connection', (socket) => {
     };
     players.set(socket.id, player);
     socket.emit('players:snapshot', roomPlayers(roomId));
-    socket.emit('chat:bubbles', roomBubbleStates(roomId));
     socket.to(roomId).emit('player:joined', player);
+    if (syncProximityBubbles(roomId)) broadcastBubbles(roomId);
+    else socket.emit('chat:bubbles', roomBubbleStates(roomId));
   });
 
   socket.on('player:profile', (input = {}) => {
@@ -546,7 +601,9 @@ io.on('connection', (socket) => {
     player.moving = Boolean(input.moving);
     if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = player.moving ? 'Walking' : 'Active';
     reply({ ok: true });
-    checkBubbleRange(socket.id);
+    const bubblesChanged = checkBubbleRange(socket.id);
+    const proximityChanged = syncProximityBubbles(player.roomId);
+    if (bubblesChanged || proximityChanged) broadcastBubbles(player.roomId);
     // A stop packet between adjacent tiles made remote sprites flicker walk/idle.
     // Debounce only stops; the next walking packet cancels the brief false stop.
     clearTimeout(socket.data.stopTimer);
@@ -554,6 +611,33 @@ io.on('connection', (socket) => {
     else socket.data.stopTimer = setTimeout(() => {
       if (players.get(socket.id) === player && !player.moving) socket.to(player.roomId).emit('player:moved', player);
     }, 80);
+  });
+
+  socket.on('player:travel', (input = {}, reply = () => {}) => {
+    const player = players.get(socket.id);
+    const targetId = typeof input?.targetId === 'string' && input.targetId.length <= 128 ? input.targetId : '';
+    const target = players.get(targetId);
+    if (!player || !target || target.id === player.id || target.roomId !== player.roomId
+      || !allowEvent(socket, 'travel', 4, 10000)) {
+      return reply({ ok: false, error: 'Student is no longer available' });
+    }
+    const destination = findTravelTile(player, target);
+    if (!destination) return reply({ ok: false, error: 'No safe space is available near this student' });
+    clearTimeout(socket.data.stopTimer);
+    if (player.chairId) occupiedChairs.delete(chairKey(player.roomId, player.chairId));
+    const horizontal = Math.abs(target.c - destination.c) >= Math.abs(target.r - destination.r);
+    const facing = horizontal
+      ? (target.c >= destination.c ? 'right' : 'left')
+      : (target.r >= destination.r ? 'down' : 'up');
+    Object.assign(player, destination, { facing, moving: false, sitting: false, chairId: null });
+    if (player.status === 'Focusing') player.status = 'Paused';
+    else if (['Walking', 'Seated'].includes(player.status)) player.status = 'Active';
+    const bubblesChanged = checkBubbleRange(socket.id);
+    const proximityChanged = syncProximityBubbles(player.roomId);
+    reply({ ok: true, player });
+    socket.to(player.roomId).emit('player:moved', player);
+    if (bubblesChanged || proximityChanged) broadcastBubbles(player.roomId);
+    return undefined;
   });
 
   socket.on('player:status', (input = {}) => {
@@ -580,28 +664,9 @@ io.on('connection', (socket) => {
       memberIds: [...chatBubbles.get(currentId).members],
     } : null });
 
-    const nearby = roomPlayers(player.roomId)
-      .filter((other) => canChat(player, other))
-      .sort((first, second) => {
-        const firstOpen = playerBubble.has(first.id) && !chatBubbles.get(playerBubble.get(first.id))?.locked;
-        const secondOpen = playerBubble.has(second.id) && !chatBubbles.get(playerBubble.get(second.id))?.locked;
-        return Number(secondOpen) - Number(firstOpen);
-      });
-    const target = nearby.find((other) => {
-      const bubble = chatBubbles.get(playerBubble.get(other.id));
-      return !bubble || !bubble.locked;
-    });
-    if (!target) return reply({ ok: false, error: 'Move near another student to chat' });
-
-    let bubble = chatBubbles.get(playerBubble.get(target.id));
-    if (!bubble) {
-      bubble = { id: crypto.randomUUID(), roomId: player.roomId, members: new Set([target.id]), locked: false };
-      chatBubbles.set(bubble.id, bubble);
-      playerBubble.set(target.id, bubble.id);
-    }
-    bubble.members.add(socket.id);
-    playerBubble.set(socket.id, bubble.id);
-    broadcastBubbles(player.roomId);
+    if (syncProximityBubbles(player.roomId)) broadcastBubbles(player.roomId);
+    const bubble = chatBubbles.get(playerBubble.get(socket.id));
+    if (!bubble) return reply({ ok: false, error: 'Move near another student to chat' });
     return reply({ ok: true, bubble: { id: bubble.id, locked: false, memberIds: [...bubble.members] } });
   });
 
@@ -613,6 +678,7 @@ io.on('connection', (socket) => {
     }
     // SECURITY: only a current member can change admission to this server-owned bubble.
     bubble.locked = input?.locked !== false;
+    if (!bubble.locked) syncProximityBubbles(player.roomId);
     broadcastBubbles(player.roomId);
     return reply({ ok: true, locked: bubble.locked });
   });
@@ -620,7 +686,7 @@ io.on('connection', (socket) => {
   socket.on('chat:leave', (_input = {}, reply = () => {}) => {
     const player = players.get(socket.id);
     if (!player) return reply({ ok: false });
-    leaveBubble(socket.id);
+    if (leaveBubble(socket.id)) broadcastBubbles(player.roomId);
     return reply({ ok: true });
   });
 
@@ -655,7 +721,9 @@ io.on('connection', (socket) => {
     Object.assign(player, { chairId, sitting: true, moving: false, c: chair.c, r: chair.r, facing: chair.facing });
     if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = 'Seated';
     reply({ ok: true });
-    checkBubbleRange(socket.id);
+    const bubblesChanged = checkBubbleRange(socket.id);
+    const proximityChanged = syncProximityBubbles(player.roomId);
+    if (bubblesChanged || proximityChanged) broadcastBubbles(player.roomId);
     socket.to(player.roomId).emit('player:seated', player);
   });
 
@@ -673,7 +741,9 @@ io.on('connection', (socket) => {
     player.chairId = null;
     player.sitting = false;
     if (['up', 'down', 'left', 'right'].includes(input?.facing)) player.facing = input.facing;
-    checkBubbleRange(socket.id);
+    const bubblesChanged = checkBubbleRange(socket.id);
+    const proximityChanged = syncProximityBubbles(player.roomId);
+    if (bubblesChanged || proximityChanged) broadcastBubbles(player.roomId);
     socket.to(player.roomId).emit('player:stood', player);
   });
 
@@ -681,9 +751,11 @@ io.on('connection', (socket) => {
     clearTimeout(socket.data.stopTimer);
     const player = players.get(socket.id);
     if (!player) return;
-    leaveBubble(socket.id);
+    const bubblesChanged = leaveBubble(socket.id);
     if (player.chairId) occupiedChairs.delete(chairKey(player.roomId, player.chairId));
     players.delete(socket.id);
+    const proximityChanged = syncProximityBubbles(player.roomId);
+    if (bubblesChanged || proximityChanged) broadcastBubbles(player.roomId);
     io.to(player.roomId).emit('player:left', socket.id);
   });
 });
@@ -710,3 +782,5 @@ function shutdown(signal) {
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+module.exports = { app, server };

@@ -188,6 +188,80 @@ async function finishStudySession(subject, sessionId, completed, focusSeconds) {
   return result.rows[0] || null;
 }
 
+function streakFromDates(values) {
+  const dates = new Set(values);
+  const cursor = new Date();
+  cursor.setUTCHours(0, 0, 0, 0);
+  const key = () => cursor.toISOString().slice(0, 10);
+  if (!dates.has(key())) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  let streak = 0;
+  while (dates.has(key())) {
+    streak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  return streak;
+}
+
+async function getStudyAnalytics(subject) {
+  const [totals, week, activeDates, recent] = await Promise.all([
+    requirePool().query(`
+      select
+        coalesce(sum(s.focus_seconds), 0)::int as total_focus_seconds,
+        coalesce(sum(s.focus_seconds) filter (where s.started_at >= date_trunc('day', now())), 0)::int as today_focus_seconds,
+        count(*) filter (where s.completed)::int as completed_session_count
+      from public.study_sessions s
+      join public.study_desk_users u on u.id = s.user_id
+      where u.google_subject = $1 and s.ended_at is not null
+    `, [subject]),
+    requirePool().query(`
+      with days as (
+        select generate_series(current_date - 6, current_date, interval '1 day')::date as day
+      ), owned_sessions as (
+        select s.started_at, s.focus_seconds
+        from public.study_sessions s
+        join public.study_desk_users u on u.id = s.user_id
+        where u.google_subject = $1 and s.ended_at is not null
+      )
+      select to_char(days.day, 'YYYY-MM-DD') as date,
+        coalesce(sum(owned_sessions.focus_seconds), 0)::int as focus_seconds
+      from days
+      left join owned_sessions on owned_sessions.started_at >= days.day
+        and owned_sessions.started_at < days.day + 1
+      group by days.day order by days.day
+    `, [subject]),
+    requirePool().query(`
+      select distinct to_char(s.started_at, 'YYYY-MM-DD') as date
+      from public.study_sessions s
+      join public.study_desk_users u on u.id = s.user_id
+      where u.google_subject = $1 and s.ended_at is not null and s.focus_seconds > 0
+    `, [subject]),
+    requirePool().query(`
+      select s.id, s.mode, s.topic, s.started_at, s.ended_at, s.focus_seconds, s.completed
+      from public.study_sessions s
+      join public.study_desk_users u on u.id = s.user_id
+      where u.google_subject = $1 and s.ended_at is not null
+      order by s.started_at desc limit 8
+    `, [subject]),
+  ]);
+  const summary = totals.rows[0] || {};
+  return {
+    totalFocusSeconds: Number(summary.total_focus_seconds) || 0,
+    todayFocusSeconds: Number(summary.today_focus_seconds) || 0,
+    completedSessionCount: Number(summary.completed_session_count) || 0,
+    currentStreak: streakFromDates(activeDates.rows.map((row) => row.date)),
+    lastSevenDays: week.rows.map((row) => ({ date: row.date, focusSeconds: Number(row.focus_seconds) || 0 })),
+    recentSessions: recent.rows.map((row) => ({
+      id: row.id,
+      mode: row.mode,
+      topic: row.topic,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      focusSeconds: Number(row.focus_seconds) || 0,
+      completed: row.completed,
+    })),
+  };
+}
+
 async function close() {
   if (pool) await pool.end();
 }
@@ -203,5 +277,6 @@ module.exports = {
   membershipByInvite,
   startStudySession,
   finishStudySession,
+  getStudyAnalytics,
   close,
 };
