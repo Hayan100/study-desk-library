@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Study Desk — Study Together &amp; Stay Focused</title>
   <meta name="description" content="Join a cozy multiplayer study library, focus with friends, and build consistent study habits together." />
-  <meta name="theme-color" content="#1b0f08" />
+  <meta name="theme-color" content="#181A18" />
+  <link rel="icon" type="image/png" href="/assets/branding/study-desk-icon.png" />
   <link rel="canonical" href="https://study-desk-library.fly.dev/" />
 
   <!-- Social sharing preview. Room invite routes serve this same page and image. -->
@@ -47,7 +48,10 @@
         <button class="btn-primary auth-email-button" type="submit">Continue with email</button>
       </form>
       <div class="auth-divider"><span>or</span></div>
-      <div id="google-signin" class="google-signin" aria-label="Continue with Google"></div>
+      <!-- SECURITY: this only starts Google Identity Services; the server validates the returned credential. -->
+      <button id="google-signin" class="google-signin" type="button" aria-label="Continue with Google" disabled>
+        <img src="/assets/branding/google-signin-dark.svg" alt="Continue with Google" />
+      </button>
       <small class="auth-note">Secure sign-in powered by Google. Email sign-in is being connected through Supabase Auth.</small>
       <p id="auth-message" class="auth-message" role="status"></p>
     </section>

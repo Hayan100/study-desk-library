@@ -296,6 +296,7 @@ export function initJoinScreen() {
     }
     authStep.hidden = false;
     await waitForGoogle();
+    const googleSignIn = document.getElementById('google-signin');
     window.google.accounts.id.initialize({
       client_id: state.clientId,
       callback: async ({ credential }) => {
@@ -309,8 +310,15 @@ export function initJoinScreen() {
         }
       },
     });
-    window.google.accounts.id.renderButton(document.getElementById('google-signin'), {
-      type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 374,
+    googleSignIn.disabled = false;
+    googleSignIn.addEventListener('click', () => {
+      authMessage.textContent = '';
+      // SECURITY: Google Identity Services owns account selection and returns the credential for server validation.
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
+          authMessage.textContent = 'Google sign-in could not open. Please try again.';
+        }
+      });
     });
   };
 
