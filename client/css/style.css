@@ -9,6 +9,77 @@ html, body {
   overflow: hidden;
 }
 
+/* ---------- Library loader ---------- */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #090402;
+  opacity: 1;
+  transition: opacity 240ms ease, visibility 240ms ease;
+}
+.loading-screen::before {
+  content: '';
+  position: absolute;
+  inset: -24px;
+  background: url('/assets/loading/study-desk-loading.webp') center / cover;
+  filter: blur(16px) brightness(.34);
+}
+.loading-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 42%, rgba(5, 2, 1, .62) 100%);
+}
+.loading-screen.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+.loading-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.loading-panel {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: clamp(32px, 8vh, 88px);
+  width: min(560px, calc(100% - 40px));
+  transform: translateX(-50%);
+  padding: 12px 16px 16px;
+  border: 2px solid #c47b12;
+  outline: 3px solid rgba(12, 5, 2, .9);
+  background: linear-gradient(#2a1308ee, #110704f2);
+  box-shadow: 0 8px 26px #000c, inset 0 0 0 1px #f2b53a66;
+}
+.loading-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 9px;
+  color: #ffe0a1;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  text-shadow: 2px 2px #120701;
+}
+.loading-progressbar {
+  height: 22px;
+  padding: 3px;
+  border: 2px solid #d8951d;
+  background: #120703;
+  box-shadow: inset 0 2px 5px #000;
+}
+.loading-progress {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #8b3d06, #e58b0b 55%, #ffd45a);
+  box-shadow: 0 0 10px #e89b18aa;
+  transition: width 120ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-screen, .loading-progress { transition: none; }
+}
+
 /* Center the Phaser canvas on screen. */
 #game-container {
   width: 100%;

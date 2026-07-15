@@ -68,6 +68,15 @@ export class LibraryScene extends Phaser.Scene {
   }
 
   preload() {
+    const loadingProgress = document.getElementById('loading-progress');
+    const loadingProgressbar = document.getElementById('loading-progressbar');
+    const loadingPercent = document.getElementById('loading-percent');
+    this.load.on('progress', (value) => {
+      const percent = Math.round(value * 100);
+      if (loadingProgress) loadingProgress.style.width = `${percent}%`;
+      if (loadingProgressbar) loadingProgressbar.setAttribute('aria-valuenow', String(percent));
+      if (loadingPercent) loadingPercent.textContent = `${percent}%`;
+    });
     this.load.on('loaderror', (file) => console.warn('[assets] expected but missing:', file.src));
     this.load.tilemapTiledJSON('library-map', A.map);
     this.load.tilemapTiledJSON('firstfloor-map', A.firstFloor);
@@ -123,6 +132,7 @@ export class LibraryScene extends Phaser.Scene {
 
     this.setupInput();
     this.setupCamera();
+    requestAnimationFrame(() => document.getElementById('loading-screen')?.classList.add('is-hidden'));
   }
 
   requestSit(chair) {
@@ -232,6 +242,8 @@ export class LibraryScene extends Phaser.Scene {
     remote.label.setText(player.name);
     const chair = player.sitting ? this.chairs.find((item) => item.id === player.chairId) : null;
     if (chair) {
+      // A previous walking tween must not keep moving the friend after the sit snap.
+      this.tweens.killTweensOf([remote.sprite, remote.label]);
       const seatX = (chair.c + ((chair.width || 1) - 1) / 2) * TILE + TILE / 2 + (chair.seatOffsetX || 0);
       const baseY = (chair.r + 1) * TILE;
       const seatY = chair.facing === 'up' ? baseY - TILE - 12 : baseY - 12;

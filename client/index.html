@@ -7,6 +7,7 @@
   <meta name="description" content="Join a cozy multiplayer study library, focus with friends, and build consistent study habits together." />
   <meta name="theme-color" content="#1b0f08" />
   <link rel="icon" type="image/png" href="/assets/branding/study-desk-icon.png" />
+  <link rel="preload" as="image" href="/assets/loading/study-desk-loading.webp" type="image/webp" fetchpriority="high" />
   <link rel="canonical" href="https://study-desk-library.fly.dev/" />
 
   <!-- Social sharing preview. Room invite routes serve this same page and image. -->
@@ -29,11 +30,18 @@
   <meta name="twitter:image:alt" content="Study Desk pixel-art library with students studying together" />
   <!-- Room invite URLs are nested under /room/*, so client assets must resolve from the site root. -->
   <link rel="stylesheet" href="/css/style.css" />
-  <!-- Phaser 3 from CDN (no build step). -->
-  <!-- SECURITY: pin and integrity-check the only third-party browser script. -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js" integrity="sha384-Fi7F0CYQBHYa+s2vvYJeiqvOQf3tuZ28vafRGXvMt7ijxNTVf3+eXPkNRIUi9JD2" crossorigin="anonymous"></script>
 </head>
 <body>
+  <div id="loading-screen" class="loading-screen" role="status" aria-live="polite" aria-label="Entering the library">
+    <img class="loading-art" src="/assets/loading/study-desk-loading.webp" fetchpriority="high" decoding="sync" alt="" />
+    <div class="loading-panel">
+      <div class="loading-copy"><span>Entering the library</span><strong id="loading-percent">0%</strong></div>
+      <div id="loading-progressbar" class="loading-progressbar" role="progressbar" aria-label="Loading game assets" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="loading-progress" class="loading-progress"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="join-screen" class="join-screen">
     <section id="auth-step" class="join-card auth-card" hidden>
       <img class="auth-brand-logo" src="/assets/branding/mdcatemy-logo.png" alt="MDCATEMY" />
@@ -289,6 +297,9 @@
   <button id="open-session" class="open-session" hidden>＋ Session</button>
 
   <!-- ES modules — no bundler needed when served over http. -->
+  <!-- Phaser stays after the loader markup so the artwork can paint while the library downloads. -->
+  <!-- SECURITY: pin and integrity-check the only third-party browser script. -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js" integrity="sha384-Fi7F0CYQBHYa+s2vvYJeiqvOQf3tuZ28vafRGXvMt7ijxNTVf3+eXPkNRIUi9JD2" crossorigin="anonymous"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/js/main.js"></script>
 </body>
