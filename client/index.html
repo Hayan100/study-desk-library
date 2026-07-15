@@ -32,10 +32,10 @@
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
-  <div id="loading-screen" class="loading-screen" role="status" aria-live="polite" aria-label="Entering the library">
+  <div id="loading-screen" class="loading-screen" role="status" aria-live="polite" aria-label="Entering the library" hidden>
     <img class="loading-art" src="/assets/loading/study-desk-loading.webp" fetchpriority="high" decoding="sync" alt="" />
     <div class="loading-panel">
-      <div class="loading-copy"><span>Entering the library</span><strong id="loading-percent">0%</strong></div>
+      <div class="loading-copy"><span id="loading-status">Entering the library</span><strong id="loading-percent">0%</strong></div>
       <div id="loading-progressbar" class="loading-progressbar" role="progressbar" aria-label="Loading game assets" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="loading-progress" class="loading-progress"></div>
       </div>
@@ -220,6 +220,7 @@
   </div>
   <!-- Phaser injects its canvas here. -->
   <div id="game-container"></div>
+  <div id="game-prompt" class="game-prompt" role="status" aria-live="polite" hidden></div>
 
   <!-- ===================== Start Session popup (HTML overlay) ===================== -->
   <div id="session-modal" class="modal" hidden>

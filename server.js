@@ -732,7 +732,8 @@ io.on('connection', (socket) => {
       return reply({ ok: false, error: 'Join a communication bubble first' });
     }
     const message = {
-      id: crypto.randomUUID(), bubbleId: bubble.id, from: sender.id, text, sentAt: Date.now(),
+      id: crypto.randomUUID(), bubbleId: bubble.id, from: sender.id,
+      fromUserId: sender.userId, fromName: sender.name, text, sentAt: Date.now(),
     };
     for (const memberId of bubble.members) io.to(memberId).emit('chat:message', message);
     return reply({ ok: true });

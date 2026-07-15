@@ -151,7 +151,10 @@ async function walkAway(ws, start, others, firstPacketId) {
   assert.equal(joinedBubble.memberIds.length, 3, 'unlocking admits nearby students automatically');
   const receivedMessage = nextEvent(second, 'chat:message');
   assert.equal((await emitAck(third, 12, 'chat:send', { text: 'hello bubble' })).ok, true);
-  assert.equal((await receivedMessage).text, 'hello bubble');
+  const chatMessage = await receivedMessage;
+  assert.equal(chatMessage.text, 'hello bubble');
+  assert.equal(chatMessage.fromName, 'Third');
+  assert.equal(chatMessage.fromUserId, third.socketId);
 
   const leftState = nextEvent(first, 'chat:bubbles');
   const thirdStart = third.snapshot.find((player) => player.id === third.socketId);

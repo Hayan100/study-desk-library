@@ -7,10 +7,27 @@ let scene = null;
 let profile = null;
 let databaseEnabled = false;
 let selectedStudentId = null;
+let snapshotReceived = false;
 const pathRoom = location.pathname.match(/^\/room\/([a-z0-9-]{6,48})\/?$/i)?.[1]?.toLowerCase();
 // The URL may contain an invite capability before authentication. It becomes the
 // active Socket.IO room only after the server confirms this user's membership.
 export let roomId = pathRoom || null;
+
+const PROFILE_COLORS = [
+  ['#dbeafe', '#1d4ed8'], ['#dcfce7', '#15803d'], ['#fef3c7', '#b45309'],
+  ['#fce7f3', '#be185d'], ['#ede9fe', '#6d28d9'], ['#cffafe', '#0e7490'],
+];
+const initials = (name) => String(name || 'Student').trim().split(/\s+/).slice(0, 2)
+  .map((part) => part[0]).join('').toUpperCase();
+const profileColors = (value) => {
+  const hash = [...String(value || '')].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 0);
+  return PROFILE_COLORS[hash % PROFILE_COLORS.length];
+};
+const markMultiplayerReady = () => {
+  if (!snapshotReceived || !scene || !profile || !roomId) return;
+  document.body.classList.add('multiplayer-ready');
+  window.dispatchEvent(new Event('multiplayer-ready'));
+};
 
 async function api(path, options = {}) {
   const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -24,9 +41,11 @@ socket.on('players:snapshot', (list) => {
   players.clear();
   list.forEach((player) => players.set(player.id, player));
   scene?.syncRemotePlayers([...players.values()], socket.id);
-  if (profile) scene?.setLocalAvatar(profile.avatar);
+  if (profile) scene?.setLocalProfile(profile);
   updateRoster();
   notifyPlayers();
+  snapshotReceived = true;
+  markMultiplayerReady();
 });
 socket.on('player:joined', (player) => {
   players.set(player.id, player);
@@ -133,7 +152,9 @@ export const network = {
     history.replaceState(null, '', `/room/${roomId}`);
     profile = nextProfile;
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
-    scene?.setLocalAvatar(profile.avatar);
+    snapshotReceived = false;
+    document.body.classList.remove('multiplayer-ready');
+    scene?.setLocalProfile(profile);
     if (socket.connected) socket.emit('player:join', { ...profile, roomId });
     else socket.connect();
   },
@@ -153,7 +174,7 @@ export const network = {
     profile = { ...profile, ...nextProfile };
     profile = { ...profile, ...await this.saveProfile(profile) };
     localStorage.setItem('study-desk-profile', JSON.stringify(profile));
-    scene?.setLocalAvatar(profile.avatar);
+    scene?.setLocalProfile(profile);
     socket.emit('player:profile', profile);
     return profile;
   },
@@ -194,7 +215,9 @@ export const network = {
     return [...players.values()].some((player) => player.id !== socket.id && player.c === c && player.r === r);
   },
   selfId() { return socket.id; },
+  selfPlayer() { return players.get(socket.id) || null; },
   player(id) { return players.get(id) || null; },
+  currentRoom() { return roomId; },
   isNearby(id) {
     const self = players.get(socket.id), other = players.get(id);
     return Boolean(self && other && self.id !== other.id
@@ -213,6 +236,7 @@ export const network = {
     });
   },
   currentBubble() { return chatBubbles.find((bubble) => bubble.memberIds.includes(socket.id)) || null; },
+  bubble(id) { return chatBubbles.find((bubble) => bubble.id === id) || null; },
   enterBubble(reply = () => {}) { socket.emit('chat:enter', {}, reply); },
   setBubbleLocked(locked, reply = () => {}) { socket.emit('chat:lock', { locked }, reply); },
   leaveBubble(reply = () => {}) { socket.emit('chat:leave', {}, reply); },
@@ -244,7 +268,8 @@ export const network = {
     scene = nextScene;
     scene.syncRemotePlayers([...players.values()], socket.id);
     scene.setChatBubbles(chatBubbles, socket.id);
-    if (profile) scene.setLocalAvatar(profile.avatar);
+    if (profile) scene.setLocalProfile(profile);
+    markMultiplayerReady();
   },
 };
 
@@ -253,6 +278,8 @@ socket.on('connect_error', (error) => {
   window.dispatchEvent(new CustomEvent('network-error', { detail: error.message || 'Connection failed' }));
 });
 socket.on('disconnect', () => {
+  snapshotReceived = false;
+  document.body.classList.remove('multiplayer-ready');
   chatBubbles = [];
   scene?.setChatBubbles([], null);
   window.dispatchEvent(new CustomEvent('chat-bubbles', { detail: [] }));
@@ -266,16 +293,21 @@ function updateRoster() {
   const list = document.getElementById('people-list');
   if (!list) return;
   const query = document.getElementById('people-search').value.trim().toLowerCase();
-  const visible = [...players.values()].filter((player) => player.name.toLowerCase().includes(query));
+  const visible = [...players.values()]
+    .filter((player) => player.name.toLowerCase().includes(query))
+    .sort((first, second) => Number(second.id === socket.id) - Number(first.id === socket.id)
+      || first.name.localeCompare(second.name));
   list.replaceChildren(...visible.map((player) => {
     const nearby = player.id !== socket.id && network.isNearby(player.id);
     const row = document.createElement('div');
     row.className = `person-row${nearby ? ' is-chat-ready' : ''}${player.id !== socket.id ? ' is-selectable' : ''}`;
     const initial = document.createElement('span');
-    initial.className = `person-avatar is-${player.avatar}`;
-    if (player.color) initial.style.background = player.color;
+    initial.className = 'person-avatar';
+    const [background, color] = profileColors(player.userId || player.id);
+    initial.style.background = background;
+    initial.style.color = color;
     if (player.photo) { initial.style.background = `url(${player.photo}) center/cover`; initial.textContent = ''; }
-    else initial.textContent = player.name[0].toUpperCase();
+    else initial.textContent = initials(player.name);
     const info = document.createElement('span');
     const name = document.createElement('strong');
     name.textContent = player.id === socket.id ? `${player.name} (You)` : player.name;

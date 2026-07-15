@@ -72,7 +72,7 @@ export class LibraryScene extends Phaser.Scene {
     const loadingProgressbar = document.getElementById('loading-progressbar');
     const loadingPercent = document.getElementById('loading-percent');
     this.load.on('progress', (value) => {
-      const percent = Math.round(value * 100);
+      const percent = Math.round(value * 85);
       if (loadingProgress) loadingProgress.style.width = `${percent}%`;
       if (loadingProgressbar) loadingProgressbar.setAttribute('aria-valuenow', String(percent));
       if (loadingPercent) loadingPercent.textContent = `${percent}%`;
@@ -123,16 +123,17 @@ export class LibraryScene extends Phaser.Scene {
     // Spawn in the ground-floor (left library) centre.
     const spawn = this.findOpenTile(Math.floor(LIB_W / 2), FLOOR_H + Math.floor(LIB_W / 2));
     this.player = new Player(this, spawn.c, spawn.r);
+    this.localLabel = this.add.text(this.player.sprite.x, this.player.sprite.y - 78, 'You', {
+      fontFamily: 'Arial', fontSize: '9px', color: '#ffffff', backgroundColor: '#b45309', padding: { x: 3, y: 2 },
+    }).setOrigin(0.5, 1).setDepth(1001);
     this.chatBubbleGraphics = this.add.graphics().setDepth(2.4);
-    this.chatHint = this.add.text(0, 0, 'C  Chat', {
-      fontFamily: 'Arial', fontSize: '9px', color: '#111827', backgroundColor: '#ffffff',
-      padding: { x: 5, y: 3 },
-    }).setOrigin(0.5, 1).setDepth(1002).setVisible(false);
+    this.gamePrompt = document.getElementById('game-prompt');
     network.attachScene(this);
 
     this.setupInput();
     this.setupCamera();
-    requestAnimationFrame(() => document.getElementById('loading-screen')?.classList.add('is-hidden'));
+    document.body.classList.add('game-ready');
+    window.dispatchEvent(new Event('game-ready'));
   }
 
   requestSit(chair) {
@@ -199,7 +200,10 @@ export class LibraryScene extends Phaser.Scene {
     }
   }
 
-  setLocalAvatar(avatar) { this.player?.setAvatar(avatar); }
+  setLocalProfile(profile) {
+    this.player?.setAvatar(profile?.avatar);
+    this.localLabel?.setText(`${profile?.name || 'Student'} (You)`);
+  }
 
   moveLocalPlayer(state) { this.player?.applyServerPosition(state); }
 
@@ -359,6 +363,11 @@ export class LibraryScene extends Phaser.Scene {
     });
 
     this.input.on('pointerdown', (pointer) => {
+      const focused = document.activeElement;
+      if (focused && document.getElementById('chat-panel')?.contains(focused)) {
+        focused.blur();
+        return;
+      }
       if (this.inputLocked()) return;
       if (pointer.x < this.viewX) return; // ignore clicks in the reserved left menu panel
       const c = Math.floor(pointer.worldX / TILE);
@@ -440,13 +449,20 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     const current = network.currentBubble();
-    this.chatHint.setVisible(Boolean(current));
-    if (current) this.chatHint.setPosition(this.player.sprite.x, this.player.sprite.y - 82);
+    const prompts = [];
+    if (current) prompts.push('Press C to chat');
+    if (this.player.sitting) prompts.push('Press E to stand');
+    else if (!this.player.moving && this.player.findNearbyChair(this.chairs)) prompts.push('Press E to sit');
+    if (this.gamePrompt) {
+      this.gamePrompt.textContent = prompts.join('  ·  ');
+      this.gamePrompt.hidden = prompts.length === 0;
+    }
   }
 
   update() {
     if (this.player) this.player.update();
     if (this.player) this.updateCamera();
+    if (this.localLabel && this.player) this.localLabel.setPosition(this.player.sprite.x, this.player.sprite.y - 78);
     this.drawChatBubbles();
   }
 }

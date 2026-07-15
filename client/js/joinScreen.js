@@ -34,6 +34,44 @@ export function initJoinScreen() {
   const copyButton = document.getElementById('invite-copy');
   const inviteField = document.getElementById('invite-link');
   const inviteButton = document.getElementById('invite-open');
+  const loadingScreen = document.getElementById('loading-screen');
+  const loadingProgress = document.getElementById('loading-progress');
+  const loadingProgressbar = document.getElementById('loading-progressbar');
+  const loadingPercent = document.getElementById('loading-percent');
+  const loadingStatus = document.getElementById('loading-status');
+  const setLoading = (percent, status) => {
+    const value = Math.max(0, Math.min(100, Math.round(percent)));
+    loadingProgress.style.width = `${value}%`;
+    loadingProgressbar.setAttribute('aria-valuenow', String(value));
+    loadingPercent.textContent = `${value}%`;
+    loadingStatus.textContent = status;
+  };
+  const showLoading = (status = 'Entering the library') => {
+    loadingScreen.hidden = false;
+    loadingScreen.classList.remove('is-hidden');
+    const loaded = document.body.classList.contains('game-ready')
+      ? 85 : Number(loadingProgressbar.getAttribute('aria-valuenow')) || 0;
+    setLoading(loaded, status);
+  };
+  const cancelLoading = () => {
+    loadingScreen.hidden = true;
+    loadingScreen.classList.remove('is-hidden');
+  };
+  const waitForReady = (className, eventName) => document.body.classList.contains(className)
+    ? Promise.resolve()
+    : new Promise((resolve) => window.addEventListener(eventName, resolve, { once: true }));
+  const finishLoadingWhenReady = () => {
+    Promise.all([
+      waitForReady('game-ready', 'game-ready'),
+      waitForReady('multiplayer-ready', 'multiplayer-ready'),
+    ]).then(() => {
+      setLoading(100, 'Library ready');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        loadingScreen.classList.add('is-hidden');
+        setTimeout(() => { loadingScreen.hidden = true; }, 240);
+      }));
+    });
+  };
   const refreshInvite = (inviteToken = roomId) => {
     inviteField.value = inviteToken ? new URL(`/room/${encodeURIComponent(inviteToken)}`, location.origin).href : '';
   };
@@ -78,6 +116,7 @@ export function initJoinScreen() {
   };
 
   const enter = (nextProfile, library = null) => {
+    showLoading('Loading map and students');
     nextProfile.color ||= '#86efac';
     profile = nextProfile;
     refreshProfile();
@@ -89,7 +128,17 @@ export function initJoinScreen() {
     document.getElementById('people-panel').hidden = false;
     document.body.classList.add('has-people-panel');
     window.dispatchEvent(new Event('resize'));
+    finishLoadingWhenReady();
   };
+  window.addEventListener('network-error', ({ detail }) => {
+    if (loadingScreen.hidden) return;
+    cancelLoading();
+    screen.hidden = false;
+    libraryStep.hidden = false;
+    document.getElementById('people-panel').hidden = true;
+    document.body.classList.remove('has-people-panel');
+    document.getElementById('library-message').textContent = detail || 'The room could not be loaded.';
+  });
 
   toggle.addEventListener('click', () => {
     const collapsed = document.body.classList.toggle('sidebar-collapsed');
@@ -288,24 +337,29 @@ export function initJoinScreen() {
     const isAdmin = account?.isAdmin === true;
     form.hidden = true;
     authStep.hidden = true;
-    libraryStep.hidden = false;
+    libraryStep.hidden = true;
     document.getElementById('library-step-title').textContent = isAdmin ? 'Manage study rooms' : 'Join a study room';
     document.getElementById('library-step-copy').textContent = isAdmin
       ? 'Create rooms, invite students, and see who is active.'
       : 'Paste the invite link shared by an admin.';
     document.getElementById('create-library-form').hidden = !isAdmin;
     document.getElementById('library-name-input').value ||= `${profile.name}'s Room`;
-    renderLibraries(isAdmin ? await network.libraries() : []);
     if (roomId) {
+      showLoading('Joining invited room');
       const message = document.getElementById('library-message');
       message.textContent = 'Joining invited room...';
       try {
         const library = await network.joinLibrary(roomId);
         enter(profile, library);
       } catch (error) {
+        cancelLoading();
+        libraryStep.hidden = false;
         message.textContent = error.message;
       }
+      return;
     }
+    libraryStep.hidden = false;
+    renderLibraries(isAdmin ? await network.libraries() : []);
   };
 
   document.getElementById('create-library-form').addEventListener('submit', async (event) => {
@@ -328,10 +382,12 @@ export function initJoinScreen() {
     event.preventDefault();
     const message = document.getElementById('library-message');
     message.textContent = 'Joining room...';
+    showLoading('Joining room');
     try {
       const library = await network.joinLibrary(document.getElementById('library-invite-input').value);
       enter(profile, library);
     } catch (error) {
+      cancelLoading();
       message.textContent = error.message;
     }
   });

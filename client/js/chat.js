@@ -1,9 +1,37 @@
 import { network } from './network.js';
 import { playNotification } from './audio.js';
 
-// Chat is deliberately ephemeral: messages live only in this tab and disappear
-// when it closes. The server relays them only to current communication-bubble members.
+// Keep the last 100 messages for the same room + participant set on this browser.
 const threads = new Map();
+const threadKey = (bubble) => {
+  if (!bubble) return null;
+  const memberIds = bubble.memberIds.map((id) => network.player(id)?.userId).filter(Boolean).sort();
+  return memberIds.length === bubble.memberIds.length
+    ? `${network.currentRoom()}:${memberIds.join(',')}`
+    : `${network.currentRoom()}:${bubble.id}`;
+};
+const storedThread = (key) => {
+  if (!key) return [];
+  if (threads.has(key)) return threads.get(key);
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`study-desk-chat:${key}`));
+    const history = Array.isArray(parsed) ? parsed.filter((message) => message
+      && typeof message.text === 'string' && message.text.length <= 500
+      && typeof message.sentAt === 'number').slice(-100) : [];
+    threads.set(key, history);
+    return history;
+  } catch {
+    threads.set(key, []);
+    return [];
+  }
+};
+const saveThread = (key, history) => {
+  threads.set(key, history);
+  try { localStorage.setItem(`study-desk-chat:${key}`, JSON.stringify(history)); } catch { /* storage can be unavailable */ }
+};
+const isMine = (message) => message.fromUserId
+  ? message.fromUserId === network.selfPlayer()?.userId
+  : message.from === network.selfId();
 
 export function initChat() {
   const panel = document.getElementById('chat-panel');
@@ -20,7 +48,7 @@ export function initChat() {
   const form = document.getElementById('chat-form');
   const input = document.getElementById('chat-input');
   const send = form.querySelector('button');
-  let visibleBubbleId = null;
+  let visibleThreadKey = null;
   let unreadCount = 0;
 
   const showUnread = () => {
@@ -38,7 +66,7 @@ export function initChat() {
     peopleRail.classList.remove('is-active');
     clearUnread();
     const bubble = current();
-    if (bubble) visibleBubbleId = bubble.id;
+    if (bubble) visibleThreadKey = threadKey(bubble);
     render();
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   };
@@ -54,8 +82,8 @@ export function initChat() {
       .filter((id) => id !== network.selfId())
       .map((id) => network.player(id)?.name)
       .filter(Boolean) || [];
-    if (bubble) visibleBubbleId = bubble.id;
-    const history = visibleBubbleId ? threads.get(visibleBubbleId) || [] : [];
+    if (bubble) visibleThreadKey = threadKey(bubble);
+    const history = storedThread(visibleThreadKey);
     const active = Boolean(bubble);
 
     avatar.textContent = bubble?.locked ? '🔒' : 'C';
@@ -75,9 +103,9 @@ export function initChat() {
 
     messages.replaceChildren(...history.map((message) => {
       const row = document.createElement('div');
-      row.className = `chat-message${message.from === network.selfId() ? ' is-mine' : ''}`;
+      row.className = `chat-message${isMine(message) ? ' is-mine' : ''}`;
       const sender = document.createElement('small');
-      sender.textContent = message.from === network.selfId() ? 'You' : network.player(message.from)?.name || 'Student';
+      sender.textContent = isMine(message) ? 'You' : message.fromName || network.player(message.from)?.name || 'Student';
       const body = document.createElement('span');
       // User messages are rendered as text nodes, never interpreted as HTML.
       body.textContent = message.text;
@@ -87,7 +115,7 @@ export function initChat() {
     messages.hidden = history.length === 0;
     empty.hidden = history.length > 0;
     if (!empty.hidden) empty.textContent = active
-      ? 'This bubble is ready. Messages are visible only to its current members.'
+      ? 'This bubble is ready. Recent history is kept on this browser.'
       : 'Walk near another student to automatically form a white communication bubble.';
     messages.scrollTop = messages.scrollHeight;
   };
@@ -98,8 +126,8 @@ export function initChat() {
   window.addEventListener('open-chat', open);
   window.addEventListener('players-updated', () => { if (!panel.hidden) render(); });
   window.addEventListener('chat-bubbles', () => {
-    if (!current() && visibleBubbleId) {
-      visibleBubbleId = null;
+    if (!current() && visibleThreadKey) {
+      visibleThreadKey = null;
       if (!panel.hidden) { close(); return; }
     }
     if (!panel.hidden) render();
@@ -107,13 +135,21 @@ export function initChat() {
   window.addEventListener('chat-notice', ({ detail }) => { open(); render(detail || 'Could not join a bubble'); });
   window.addEventListener('chat-message', ({ detail: message }) => {
     if (!message?.bubbleId || typeof message.text !== 'string') return;
-    const history = threads.get(message.bubbleId) || [];
-    history.push(message);
+    const key = threadKey(network.bubble(message.bubbleId)) || `${network.currentRoom()}:${message.bubbleId}`;
+    const history = storedThread(key);
+    history.push({
+      id: message.id,
+      from: message.from,
+      fromUserId: message.fromUserId || network.player(message.from)?.userId,
+      fromName: message.fromName || network.player(message.from)?.name || 'Student',
+      text: message.text,
+      sentAt: Number(message.sentAt) || Date.now(),
+    });
     if (history.length > 100) history.shift();
-    threads.set(message.bubbleId, history);
+    saveThread(key, history);
     const viewing = !panel.hidden && current()?.id === message.bubbleId;
     if (viewing) render();
-    if (message.from !== network.selfId()) {
+    if (!isMine(message)) {
       playNotification();
       if (!viewing) { unreadCount += 1; showUnread(); }
     }

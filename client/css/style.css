@@ -21,6 +21,7 @@ html, body {
   opacity: 1;
   transition: opacity 240ms ease, visibility 240ms ease;
 }
+.loading-screen[hidden] { display: none; }
 .loading-screen::before {
   content: '';
   position: absolute;
@@ -76,6 +77,16 @@ html, body {
   box-shadow: 0 0 10px #e89b18aa;
   transition: width 120ms linear;
 }
+
+.game-prompt {
+  position: fixed; left: 50%; bottom: 24px; z-index: 18; transform: translateX(-50%);
+  max-width: min(680px, calc(100vw - 32px)); padding: 10px 18px; border: 1px solid #f5c15c;
+  border-radius: 6px; background: rgba(20, 9, 4, .9); color: #fff3d1; box-shadow: 0 6px 20px #0008;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-weight: 700; letter-spacing: .04em; text-align: center;
+}
+.game-prompt[hidden] { display: none; }
+.has-people-panel .game-prompt { left: calc(50% + 168px); }
+.has-people-panel.sidebar-collapsed .game-prompt { left: calc(50% + 29px); }
 @media (prefers-reduced-motion: reduce) {
   .loading-screen, .loading-progress { transition: none; }
 }
