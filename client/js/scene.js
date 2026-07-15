@@ -63,6 +63,8 @@ export class LibraryScene extends Phaser.Scene {
     this.blocked = new Set();
     this.chairs = MAP_CHAIRS;
     this.remotePlayers = new Map();
+    this.chatBubbles = [];
+    this.chatSelfId = null;
   }
 
   preload() {
@@ -112,6 +114,11 @@ export class LibraryScene extends Phaser.Scene {
     // Spawn in the ground-floor (left library) centre.
     const spawn = this.findOpenTile(Math.floor(LIB_W / 2), FLOOR_H + Math.floor(LIB_W / 2));
     this.player = new Player(this, spawn.c, spawn.r);
+    this.chatBubbleGraphics = this.add.graphics().setDepth(2.4);
+    this.chatHint = this.add.text(0, 0, 'C  Chat', {
+      fontFamily: 'Arial', fontSize: '9px', color: '#111827', backgroundColor: '#ffffff',
+      padding: { x: 5, y: 3 },
+    }).setOrigin(0.5, 1).setDepth(1002).setVisible(false);
     network.attachScene(this);
 
     this.setupInput();
@@ -183,6 +190,12 @@ export class LibraryScene extends Phaser.Scene {
   }
 
   setLocalAvatar(avatar) { this.player?.setAvatar(avatar); }
+
+  setChatBubbles(bubbles, selfId) {
+    this.chatBubbles = Array.isArray(bubbles) ? bubbles : [];
+    this.chatSelfId = selfId;
+    this.drawChatBubbles();
+  }
 
   broadcastPlayer(state) { network.move(state); }
 
@@ -314,7 +327,7 @@ export class LibraryScene extends Phaser.Scene {
 
   setupInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,E');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,E,C');
     this.input.keyboard.clearCaptures(); // let HTML inputs receive keystrokes
 
     this.keys.E.on('down', () => {
@@ -323,6 +336,21 @@ export class LibraryScene extends Phaser.Scene {
       // menu is open. The menu still blocks every other movement action.
       if (this.inputLocked() && !this.player.sitting) return;
       this.player.toggleSit(this.chairs);
+    });
+
+    this.keys.C.on('down', () => {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+      if (document.body.classList.contains('profile-open')) return;
+      if (network.currentBubble()) {
+        window.dispatchEvent(new CustomEvent('open-chat'));
+        return;
+      }
+      network.enterBubble((response = {}) => {
+        if (response.ok) window.dispatchEvent(new CustomEvent('open-chat'));
+        else window.dispatchEvent(new CustomEvent('chat-notice', {
+          detail: response.error || 'Move near another student to chat',
+        }));
+      });
     });
 
     this.input.on('pointerdown', (pointer) => {
@@ -387,8 +415,38 @@ export class LibraryScene extends Phaser.Scene {
     );
   }
 
+  drawChatBubbles() {
+    if (!this.chatBubbleGraphics || !this.player) return;
+    this.chatBubbleGraphics.clear();
+    for (const bubble of this.chatBubbles) {
+      const points = bubble.memberIds.map((id) => {
+        if (id === this.chatSelfId) return this.player.sprite;
+        return this.remotePlayers.get(id)?.sprite;
+      }).filter(Boolean);
+      if (points.length < 2) continue;
+      const cx = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+      const cy = points.reduce((sum, point) => sum + point.y - 34, 0) / points.length;
+      const radius = Math.max(48, ...points.map((point) => Math.hypot(point.x - cx, point.y - 34 - cy) + 40));
+      const color = bubble.locked ? 0xdc2626 : 0xffffff;
+      this.chatBubbleGraphics.fillStyle(color, bubble.locked ? 0.12 : 0.08);
+      this.chatBubbleGraphics.lineStyle(2, color, 0.92);
+      this.chatBubbleGraphics.fillCircle(cx, cy, radius);
+      this.chatBubbleGraphics.strokeCircle(cx, cy, radius);
+    }
+
+    const current = network.currentBubble();
+    const canEnter = !current && network.playerPositions().some(({ id, self }) => {
+      if (self || !network.isNearby(id)) return false;
+      const otherBubble = this.chatBubbles.find((bubble) => bubble.memberIds.includes(id));
+      return !otherBubble?.locked;
+    });
+    this.chatHint.setVisible(canEnter);
+    if (canEnter) this.chatHint.setPosition(this.player.sprite.x, this.player.sprite.y - 82);
+  }
+
   update() {
     if (this.player) this.player.update();
     if (this.player) this.updateCamera();
+    this.drawChatBubbles();
   }
 }

@@ -2,6 +2,7 @@
 import { LibraryScene } from './scene.js';
 import { initSession } from './session.js';
 import { initJoinScreen } from './joinScreen.js';
+import { initChat } from './chat.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -23,3 +24,4 @@ new Phaser.Game(config);
 // The Start Session popup + timer are plain DOM, independent of Phaser.
 initSession();
 initJoinScreen();
+initChat();

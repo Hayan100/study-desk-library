@@ -1,7 +1,7 @@
 # Study Desk Library
 
-A cozy top-down 2D "study library" you can walk around in, sit at a reading desk,
-and run a focus/pomodoro session with calm background music. Local testing only.
+A cozy multiplayer 2D study library where friends can walk, sit at reading desks,
+run focus/pomodoro sessions, and talk in proximity-based communication bubbles.
 
 Built with plain HTML/CSS/JS + [Phaser 3](https://phaser.io) (loaded from a CDN)
 and an Express + Socket.IO server. **No build step.**
@@ -49,6 +49,7 @@ The health check is available at `/health`. Active rooms and occupied chairs res
 | Move              | Arrow keys **or** WASD                 |
 | Click-to-move     | Click any floor tile                   |
 | Sit / stand       | **E** (when on or next to a chair)     |
+| Enter/open chat   | **C** near another student             |
 | Start a session   | Use the **Start Session** popup        |
 
 ## What's here
@@ -58,6 +59,8 @@ The health check is available at `/health`. Active rooms and occupied chairs res
   bookshelves, reading desks with chairs, a rug).
 - One local player (LimeZu "Adam") with idle / walk / sit animations, wall &
   furniture collision, and correct top-down depth sorting by base-Y.
+- Server-controlled communication bubbles: open bubbles are white and joinable;
+  a member can lock one red so no additional students can enter its sidebar chat.
 - A Gather-style **Start Session** popup: Focus / Pomodoro tabs, durations, an
   optional topic, a calm-music picker (with volume), and a timestamp-based
   countdown that auto-switches focus ⇄ break in Pomodoro mode.

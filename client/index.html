@@ -37,9 +37,9 @@
     <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">&#x25E7;</button>
     <nav class="utility-rail" aria-label="Workspace tools">
       <div class="rail-logo">SD</div>
-      <button class="rail-button is-active" title="People">●</button>
-      <button class="rail-button" title="Map">◇</button>
-      <button class="rail-button" title="Chat">○</button>
+      <button id="people-rail" class="rail-button is-active" type="button" title="People" aria-label="Show people">&#9679;</button>
+      <button class="rail-button" type="button" title="Map">&#9671;</button>
+      <button id="chat-rail" class="rail-button" type="button" title="Chat" aria-label="Open chat">&#9675;<span id="chat-unread" class="chat-unread" hidden></span></button>
     </nav>
     <section class="people-sidebar">
       <div class="people-heading"><strong>STUDY DESK</strong><span class="connection-dot"></span></div>
@@ -49,6 +49,24 @@
       <div id="people-list" class="people-list"></div>
     </section>
   </aside>
+
+  <section id="chat-panel" class="chat-panel" aria-label="Communication bubble chat" hidden>
+    <header class="chat-header">
+      <div id="chat-avatar" class="person-avatar">C</div>
+      <div><strong id="chat-name">Communication bubble</strong><small id="chat-presence">Move near someone and press C</small></div>
+      <button id="chat-close" type="button" aria-label="Close chat">&times;</button>
+    </header>
+    <div id="chat-actions" class="chat-actions">
+      <button id="chat-lock" type="button">Lock bubble</button>
+      <button id="chat-decline" type="button">Leave</button>
+    </div>
+    <div id="chat-empty" class="chat-empty">Walk near another student and press C to enter a communication bubble.</div>
+    <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+    <form id="chat-form" class="chat-form">
+      <input id="chat-input" maxlength="500" autocomplete="off" placeholder="Write a message" aria-label="Message" />
+      <button type="submit">Send</button>
+    </form>
+  </section>
 
   <div id="invite-modal" class="profile-backdrop" hidden>
     <section class="invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">

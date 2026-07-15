@@ -89,13 +89,59 @@ io.use((socket, next) => {
 
 const players = new Map();
 const occupiedChairs = new Map();
+const chatBubbles = new Map();
+const playerBubble = new Map();
 const blockedTiles = new Set();
 const validRoomId = (value) => /^[a-z0-9-]{6,48}$/.test(value) ? value : null;
 const publicUserId = (subject) => crypto.createHmac('sha256', SESSION_SECRET).update(subject).digest('hex').slice(0, 24);
 const chairKey = (roomId, chairId) => `${roomId}:${chairId}`;
+const CHAT_DISTANCE = 4;
 const roomPlayers = (roomId) => [...players.values()].filter((player) => player.roomId === roomId);
 const isOccupied = (roomId, c, r, exceptId) => roomPlayers(roomId)
   .some((player) => player.id !== exceptId && player.c === c && player.r === r);
+const canChat = (first, second) => first && second && first.id !== second.id
+  && first.roomId === second.roomId
+  && Math.max(Math.abs(first.c - second.c), Math.abs(first.r - second.r)) <= CHAT_DISTANCE;
+const roomBubbleStates = (roomId) => [...chatBubbles.values()]
+  .filter((bubble) => bubble.roomId === roomId)
+  .map((bubble) => ({ id: bubble.id, locked: bubble.locked, memberIds: [...bubble.members] }));
+
+function broadcastBubbles(roomId) {
+  io.to(roomId).emit('chat:bubbles', roomBubbleStates(roomId));
+}
+
+function leaveBubble(playerId) {
+  const bubbleId = playerBubble.get(playerId);
+  const bubble = bubbleId && chatBubbles.get(bubbleId);
+  playerBubble.delete(playerId);
+  if (!bubble) return;
+  bubble.members.delete(playerId);
+  if (bubble.members.size < 2) {
+    for (const memberId of bubble.members) playerBubble.delete(memberId);
+    chatBubbles.delete(bubble.id);
+  }
+  broadcastBubbles(bubble.roomId);
+}
+
+function checkBubbleRange(playerId) {
+  const bubbleId = playerBubble.get(playerId);
+  const bubble = bubbleId && chatBubbles.get(bubbleId);
+  if (!bubble) return;
+  // Re-check every member when anyone moves. In a three-person chain, moving the
+  // middle student can otherwise leave a distant member incorrectly inside the bubble.
+  const isolated = [...bubble.members].filter((memberId) => ![...bubble.members]
+    .some((otherId) => otherId !== memberId && canChat(players.get(memberId), players.get(otherId))));
+  if (!isolated.length) return;
+  for (const memberId of isolated) {
+    bubble.members.delete(memberId);
+    playerBubble.delete(memberId);
+  }
+  if (bubble.members.size < 2) {
+    for (const memberId of bubble.members) playerBubble.delete(memberId);
+    chatBubbles.delete(bubble.id);
+  }
+  broadcastBubbles(bubble.roomId);
+}
 
 const mapChairs = [
   { c: 15, r: 10, facing: 'down' }, { c: 18, r: 10, facing: 'down' },
@@ -295,6 +341,7 @@ io.on('connection', (socket) => {
     };
     players.set(socket.id, player);
     socket.emit('players:snapshot', roomPlayers(roomId));
+    socket.emit('chat:bubbles', roomBubbleStates(roomId));
     socket.to(roomId).emit('player:joined', player);
   });
 
@@ -324,6 +371,7 @@ io.on('connection', (socket) => {
     player.moving = Boolean(input.moving);
     if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = player.moving ? 'Walking' : 'Active';
     reply({ ok: true });
+    checkBubbleRange(socket.id);
     // A stop packet between adjacent tiles made remote sprites flicker walk/idle.
     // Debounce only stops; the next walking packet cancels the brief false stop.
     clearTimeout(socket.data.stopTimer);
@@ -347,6 +395,77 @@ io.on('connection', (socket) => {
     io.to(player.roomId).emit('player:status', player);
   });
 
+  socket.on('chat:enter', (_input = {}, reply = () => {}) => {
+    const player = players.get(socket.id);
+    if (!player || !allowEvent(socket, 'chat-enter', 6, 10000)) return reply({ ok: false, error: 'Please wait' });
+    const currentId = playerBubble.get(socket.id);
+    if (currentId) return reply({ ok: true, bubble: chatBubbles.get(currentId) ? {
+      id: currentId,
+      locked: chatBubbles.get(currentId).locked,
+      memberIds: [...chatBubbles.get(currentId).members],
+    } : null });
+
+    const nearby = roomPlayers(player.roomId)
+      .filter((other) => canChat(player, other))
+      .sort((first, second) => {
+        const firstOpen = playerBubble.has(first.id) && !chatBubbles.get(playerBubble.get(first.id))?.locked;
+        const secondOpen = playerBubble.has(second.id) && !chatBubbles.get(playerBubble.get(second.id))?.locked;
+        return Number(secondOpen) - Number(firstOpen);
+      });
+    const target = nearby.find((other) => {
+      const bubble = chatBubbles.get(playerBubble.get(other.id));
+      return !bubble || !bubble.locked;
+    });
+    if (!target) return reply({ ok: false, error: 'Move near another student to chat' });
+
+    let bubble = chatBubbles.get(playerBubble.get(target.id));
+    if (!bubble) {
+      bubble = { id: crypto.randomUUID(), roomId: player.roomId, members: new Set([target.id]), locked: false };
+      chatBubbles.set(bubble.id, bubble);
+      playerBubble.set(target.id, bubble.id);
+    }
+    bubble.members.add(socket.id);
+    playerBubble.set(socket.id, bubble.id);
+    broadcastBubbles(player.roomId);
+    return reply({ ok: true, bubble: { id: bubble.id, locked: false, memberIds: [...bubble.members] } });
+  });
+
+  socket.on('chat:lock', (input = {}, reply = () => {}) => {
+    const player = players.get(socket.id);
+    const bubble = chatBubbles.get(playerBubble.get(socket.id));
+    if (!player || !bubble || !allowEvent(socket, 'chat-lock', 6, 10000)) {
+      return reply({ ok: false, error: 'No active communication bubble' });
+    }
+    // SECURITY: only a current member can change admission to this server-owned bubble.
+    bubble.locked = input?.locked !== false;
+    broadcastBubbles(player.roomId);
+    return reply({ ok: true, locked: bubble.locked });
+  });
+
+  socket.on('chat:leave', (_input = {}, reply = () => {}) => {
+    const player = players.get(socket.id);
+    if (!player) return reply({ ok: false });
+    leaveBubble(socket.id);
+    return reply({ ok: true });
+  });
+
+  socket.on('chat:send', (input = {}, reply = () => {}) => {
+    const sender = players.get(socket.id);
+    const bubble = chatBubbles.get(playerBubble.get(socket.id));
+    const text = safeText(input?.text, '', 500);
+    // SECURITY: the server, not a recipient ID supplied by the browser, owns the
+    // member list. Messages are relayed only to sockets currently inside this bubble.
+    if (!sender || !bubble || !bubble.members.has(socket.id) || !text
+      || !allowEvent(socket, 'chat', 8, 10000)) {
+      return reply({ ok: false, error: 'Join a communication bubble first' });
+    }
+    const message = {
+      id: crypto.randomUUID(), bubbleId: bubble.id, from: sender.id, text, sentAt: Date.now(),
+    };
+    for (const memberId of bubble.members) io.to(memberId).emit('chat:message', message);
+    return reply({ ok: true });
+  });
+
   socket.on('chair:sit', (input = {}, reply = () => {}) => {
     const player = players.get(socket.id);
     const chairId = typeof input?.chairId === 'string' ? input.chairId : '';
@@ -361,6 +480,7 @@ io.on('connection', (socket) => {
     Object.assign(player, { chairId, sitting: true, moving: false, c: chair.c, r: chair.r, facing: chair.facing });
     if (['Active', 'Walking', 'Seated'].includes(player.status)) player.status = 'Seated';
     reply({ ok: true });
+    checkBubbleRange(socket.id);
     socket.to(player.roomId).emit('player:seated', player);
   });
 
@@ -378,6 +498,7 @@ io.on('connection', (socket) => {
     player.chairId = null;
     player.sitting = false;
     if (['up', 'down', 'left', 'right'].includes(input?.facing)) player.facing = input.facing;
+    checkBubbleRange(socket.id);
     socket.to(player.roomId).emit('player:stood', player);
   });
 
@@ -385,6 +506,7 @@ io.on('connection', (socket) => {
     clearTimeout(socket.data.stopTimer);
     const player = players.get(socket.id);
     if (!player) return;
+    leaveBubble(socket.id);
     if (player.chairId) occupiedChairs.delete(chairKey(player.roomId, player.chairId));
     players.delete(socket.id);
     io.to(player.roomId).emit('player:left', socket.id);
