@@ -365,9 +365,11 @@ app.post('/api/auth/google', async (req, res) => {
   let payload;
   try {
     const tokenInfo = await googleClient.getTokenInfo(accessToken);
-    if (tokenInfo.aud !== GOOGLE_CLIENT_ID || !tokenInfo.sub || !tokenInfo.email ||
-        tokenInfo.email_verified !== true || tokenInfo.expiry_date <= Date.now()) {
-      throw new Error('unverified Google account');
+    // SECURITY: access-token metadata does not always include optional identity
+    // fields. Verify its audience/expiry here, then trust identity only from
+    // Google's authenticated userinfo response below.
+    if (tokenInfo.aud !== GOOGLE_CLIENT_ID || tokenInfo.expiry_date <= Date.now()) {
+      throw new Error('invalid Google access token');
     }
     const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
       headers: { authorization: `Bearer ${accessToken}` },
@@ -375,8 +377,8 @@ app.post('/api/auth/google', async (req, res) => {
     });
     if (!profileResponse.ok) throw new Error('Google profile lookup failed');
     payload = await profileResponse.json();
-    if (payload.sub !== tokenInfo.sub || payload.email !== tokenInfo.email || payload.email_verified !== true) {
-      throw new Error('Google profile mismatch');
+    if (!payload.sub || !payload.email || payload.email_verified !== true) {
+      throw new Error('unverified Google profile');
     }
   } catch {
     return res.status(401).json({ error: 'Google sign-in could not be verified' });
